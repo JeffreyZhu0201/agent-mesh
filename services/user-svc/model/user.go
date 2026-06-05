@@ -2,8 +2,12 @@ package model
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrNotFound is returned when a user is not found
+var ErrNotFound = errors.New("not found")
 
 // User represents a user in the system
 type User struct {

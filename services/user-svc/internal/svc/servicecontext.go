@@ -6,9 +6,9 @@ import (
 )
 
 type ServiceContext struct {
-	Config *config.Config
-	UserModel *model.UserModel
-	TenantModel *model.TenantModel
+	Config      *config.Config
+	UserModel   model.UserModel
+	TenantModel model.TenantModel
 }
 
 func NewServiceContext(c *config.Config) *ServiceContext {

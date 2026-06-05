@@ -1,0 +1,17 @@
+name: agentmesh/agent-svc
+port: 8082
+
+mysql:
+  host: localhost
+  port: 3306
+  user: root
+  password: password
+  database: agentmesh_agent
+  maxOpenConns: 100
+  maxIdleConns: 50
+  connMaxLifetime: 3600
+
+jwt:
+  secret: agentmesh-secret-key
+  signKey: agentmesh-signing-key
+  expiry: 86400

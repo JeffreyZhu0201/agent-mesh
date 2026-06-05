@@ -4,16 +4,7 @@ import { Layout } from '@agentmesh/ui';
 import { useMenuItems, getRouteConfigs } from '@agentmesh/plugin-sdk';
 import Dashboard from './pages/Dashboard';
 import PluginMarket from './pages/PluginMarket';
-
-// Chat placeholder component
-const Chat: React.FC = () => {
-  return (
-    <div style={{ padding: 20 }}>
-      <h2>Chat</h2>
-      <p>Chat functionality coming soon...</p>
-    </div>
-  );
-};
+import Chat from './pages/Chat';
 
 // Mock user for demo
 const MOCK_USER = {

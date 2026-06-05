@@ -18,4 +18,24 @@ type Config struct {
 		SignKey string `yaml:"signKey"`
 		Expiry  int    `yaml:"expiry"`
 	} `yaml:"jwt"`
+	LLM struct {
+		Provider string `yaml:"provider"` // "openai", "claude", "ollama"
+		OpenAI   struct {
+			APIKey   string `yaml:"apiKey"`
+			Endpoint string `yaml:"endpoint"`
+			Model    string `yaml:"model"`
+		} `yaml:"openai"`
+		Claude struct {
+			APIKey   string `yaml:"apiKey"`
+			Endpoint string `yaml:"endpoint"`
+			Model    string `yaml:"model"`
+		} `yaml:"claude"`
+		Ollama struct {
+			Endpoint string `yaml:"endpoint"`
+			Model    string `yaml:"model"`
+		} `yaml:"ollama"`
+		DefaultModel    string  `yaml:"defaultModel"`
+		Temperature     float32 `yaml:"temperature"`
+		MaxTokens       int     `yaml:"maxTokens"`
+	} `yaml:"llm"`
 }

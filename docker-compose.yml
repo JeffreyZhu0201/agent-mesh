@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: agentmesh-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: agentmesh
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - agentmesh-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: agentmesh-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - GIN_MODE=release
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root123
+      - DB_NAME=agentmesh
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - agentmesh-network
+    restart: unless-stopped
+
+  user-svc:
+    build:
+      context: ./services/user-svc
+      dockerfile: Dockerfile
+    container_name: agentmesh-user-svc
+    ports:
+      - "8081:8081"
+    environment:
+      - GIN_MODE=release
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root123
+      - DB_NAME=agentmesh
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - agentmesh-network
+    restart: unless-stopped
+
+  agent-svc:
+    build:
+      context: ./services/agent-svc
+      dockerfile: Dockerfile
+    container_name: agentmesh-agent-svc
+    ports:
+      - "8082:8082"
+    environment:
+      - GIN_MODE=release
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root123
+      - DB_NAME=agentmesh
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - agentmesh-network
+    restart: unless-stopped
+
+  plugin-svc:
+    build:
+      context: ./services/plugin-svc
+      dockerfile: Dockerfile
+    container_name: agentmesh-plugin-svc
+    ports:
+      - "8083:8083"
+    environment:
+      - GIN_MODE=release
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root123
+      - DB_NAME=agentmesh
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - agentmesh-network
+    restart: unless-stopped
+
+networks:
+  agentmesh-network:
+    driver: bridge
+
+volumes:
+  mysql_data:

@@ -82,6 +82,75 @@ const Chat: React.FC = () => {
         },
       ],
     },
+    {
+      id: generateId(),
+      title: 'Project Planning',
+      preview: 'Let me help you plan your project',
+      updatedAt: new Date(Date.now() - 86400000),
+      model: 'claude-3-opus',
+      messages: [
+        {
+          id: generateId(),
+          role: 'user',
+          content: 'I need help planning a new web application',
+          timestamp: new Date(Date.now() - 86400000),
+        },
+        {
+          id: generateId(),
+          role: 'assistant',
+          content:
+            'I would be happy to help you plan your web application! To give you the best guidance, could you tell me more about the project? What kind of application is it, and what are your main goals?',
+          model: 'claude-3-opus',
+          timestamp: new Date(Date.now() - 86400000),
+        },
+      ],
+    },
+    {
+      id: generateId(),
+      title: 'Code Review',
+      preview: 'Reviewing the API implementation',
+      updatedAt: new Date(Date.now() - 172800000),
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          id: generateId(),
+          role: 'user',
+          content: 'Can you review my API code?',
+          timestamp: new Date(Date.now() - 172800000),
+        },
+        {
+          id: generateId(),
+          role: 'assistant',
+          content:
+            'Of course! Please share your API code and I will review it for best practices, potential bugs, and suggestions for improvement.',
+          model: 'gpt-3.5-turbo',
+          timestamp: new Date(Date.now() - 172800000),
+        },
+      ],
+    },
+    {
+      id: generateId(),
+      title: 'Documentation Help',
+      preview: 'Writing README for the project',
+      updatedAt: new Date(Date.now() - 259200000),
+      model: 'claude-3-sonnet',
+      messages: [
+        {
+          id: generateId(),
+          role: 'user',
+          content: 'Help me write a README for my project',
+          timestamp: new Date(Date.now() - 259200000),
+        },
+        {
+          id: generateId(),
+          role: 'assistant',
+          content:
+            'I can help you create a comprehensive README! A good README typically includes: project title, description, installation instructions, usage examples, and contribution guidelines. What type of project is this?',
+          model: 'claude-3-sonnet',
+          timestamp: new Date(Date.now() - 259200000),
+        },
+      ],
+    },
   ]);
 
   const [selectedConversationId, setSelectedConversationId] = useState<string>(
@@ -123,6 +192,20 @@ const Chat: React.FC = () => {
   const handleSelectConversation = useCallback((id: string) => {
     setSelectedConversationId(id);
   }, []);
+
+  const handleDeleteConversation = useCallback(
+    (id: string) => {
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      // If deleting the selected conversation, switch to the first available
+      if (selectedConversationId === id) {
+        setSelectedConversationId((prev) => {
+          const remaining = conversations.filter((c) => c.id !== id);
+          return remaining[0]?.id || '';
+        });
+      }
+    },
+    [selectedConversationId, conversations]
+  );
 
   const handleSearch = useCallback((query: string) => {
     // Filter conversations based on search query
@@ -231,6 +314,7 @@ const Chat: React.FC = () => {
         onSelectConversation={handleSelectConversation}
         onNewChat={handleNewChat}
         onSearch={handleSearch}
+        onDeleteConversation={handleDeleteConversation}
       />
 
       {/* Main Chat Area */}

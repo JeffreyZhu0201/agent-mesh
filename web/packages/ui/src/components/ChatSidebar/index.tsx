@@ -12,11 +12,13 @@ import {
   Divider,
   Button,
   Avatar,
+  IconButton,
 } from '@mui/material';
 import {
   Search as SearchIcon,
   Add as AddIcon,
   Chat as ChatIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 
 export interface Conversation {
@@ -33,6 +35,7 @@ export interface ChatSidebarProps {
   onSelectConversation: (id: string) => void;
   onNewChat: () => void;
   onSearch?: (query: string) => void;
+  onDeleteConversation?: (id: string) => void;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
@@ -41,6 +44,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onSelectConversation,
   onNewChat,
   onSearch,
+  onDeleteConversation,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -148,7 +152,29 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
             </Box>
           ) : (
             conversations.map((conversation) => (
-              <ListItem key={conversation.id} disablePadding>
+              <ListItem
+                      key={conversation.id}
+                      disablePadding
+                      secondaryAction={
+                        onDeleteConversation && (
+                          <IconButton
+                            edge="end"
+                            aria-label="delete"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteConversation(conversation.id);
+                            }}
+                            sx={{
+                              mr: 1,
+                              opacity: 0.7,
+                              '&:hover': { opacity: 1, color: 'error.main' },
+                            }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        )
+                      }
+                    >
                 <ListItemButton
                   selected={selectedId === conversation.id}
                   onClick={() => onSelectConversation(conversation.id)}

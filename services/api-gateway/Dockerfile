@@ -6,7 +6,7 @@ RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /build
 
-# Copy go.mod and go.sum first (create if not exists for api-gateway)
+# Copy go.mod and go.sum first
 COPY go.mod go.sum ./
 
 # Download dependencies
@@ -29,8 +29,7 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /build/api-gateway .
 
-# Expose port
 EXPOSE 8080
 
 # Run the application
-CMD ["./api-gateway", "-f", "api-gateway.yaml"]
+CMD ["./api-gateway"]

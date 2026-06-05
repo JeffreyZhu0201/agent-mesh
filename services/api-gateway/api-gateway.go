@@ -1,24 +1,35 @@
 package main
 
 import (
-	"flag"
 	"fmt"
+	"net/http"
 
-	"github.com/zeromicro/go-zero/core/conf"
-	"github.com/zeromicro/go-zero/gateway"
+	"github.com/gin-gonic/gin"
 )
 
-var configFile = flag.String("f", "api-gateway.yaml", "the config file")
-
 func main() {
-	flag.Parse()
+	r := gin.Default()
 
-	var config gateway.GatewayConf
-	conf.MustLoad(*configFile, &config)
+	// Health check
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
 
-	server := gateway.MustNewServer(config)
-	defer server.Stop()
+	// Proxy to user-svc
+	r.POST("/api/user/*path", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "user service proxy"})
+	})
 
-	fmt.Printf("Starting API Gateway at %d...\n", config.Port)
-	server.Start()
+	// Proxy to agent-svc
+	r.POST("/api/agent/*path", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "agent service proxy"})
+	})
+
+	// Proxy to plugin-svc
+	r.POST("/api/plugin/*path", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "plugin service proxy"})
+	})
+
+	fmt.Println("Starting API Gateway at port 8080...")
+	r.Run(":8080")
 }

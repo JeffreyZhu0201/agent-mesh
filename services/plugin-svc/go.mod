@@ -1,6 +1,6 @@
 module agentmesh/plugin-svc
 
-go 1.25.5
+go 1.21
 
 require (
 	github.com/zeromicro/go-zero v1.10.2

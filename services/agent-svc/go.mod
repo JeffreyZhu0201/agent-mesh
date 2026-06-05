@@ -1,6 +1,6 @@
 module agentmesh/agent-svc
 
-go 1.25.5
+go 1.21
 
 require (
 	github.com/cloudwego/eino v0.9.4

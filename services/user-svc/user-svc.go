@@ -11,8 +11,8 @@ import (
 var configFile = flag.String("f", "user-svc.yaml", "the config file")
 
 type Config struct {
-	Name  string `yaml:"name"`
-	Port  int    `yaml:"port"`
+	Name string `yaml:"name"`
+	Port int    `yaml:"port"`
 	MySQL struct {
 		Host            string `yaml:"host"`
 		Port            int    `yaml:"port"`
@@ -26,7 +26,7 @@ type Config struct {
 	JWT struct {
 		Secret  string `yaml:"secret"`
 		SignKey string `yaml:"signKey"`
-		Expiry int    `yaml:"expiry"`
+		Expiry  int    `yaml:"expiry"`
 	} `yaml:"jwt"`
 }
 
@@ -36,7 +36,17 @@ func main() {
 	var config Config
 	conf.MustLoad(*configFile, &config)
 
-	server := zrpc.NewServer(fmt.Sprintf(":%d", config.Port))
+	server, err := zrpc.NewServer(
+		zrpc.RpcServerConf{
+			Bind: fmt.Sprintf(":%d", config.Port),
+		},
+		func(server interface{}) error {
+			return nil
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
 	defer server.Stop()
 
 	fmt.Printf("Starting User Service at port %d...\n", config.Port)

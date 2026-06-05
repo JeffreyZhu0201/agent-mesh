@@ -11,9 +11,9 @@ import (
 var configFile = flag.String("f", "agent-svc.yaml", "the config file")
 
 type Config struct {
-	Name   string `yaml:"name"`
-	Port   int    `yaml:"port"`
-	MySQL  struct {
+	Name string `yaml:"name"`
+	Port int    `yaml:"port"`
+	MySQL struct {
 		Host            string `yaml:"host"`
 		Port            int    `yaml:"port"`
 		User            string `yaml:"user"`
@@ -36,7 +36,17 @@ func main() {
 	var config Config
 	conf.MustLoad(*configFile, &config)
 
-	server := zrpc.NewServer(fmt.Sprintf(":%d", config.Port))
+	server, err := zrpc.NewServer(
+		zrpc.RpcServerConf{
+			Bind: fmt.Sprintf(":%d", config.Port),
+		},
+		func(server interface{}) error {
+			return nil
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
 	defer server.Stop()
 
 	fmt.Printf("Starting Agent Service at port %d...\n", config.Port)

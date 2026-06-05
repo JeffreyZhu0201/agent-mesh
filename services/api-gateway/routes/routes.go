@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/zhuzy2024/AgentMesh/services/api-gateway/middleware"
+	"agentmesh/api-gateway/middleware"
 )
 
 // RegisterRoutes configures all API routes with appropriate middleware

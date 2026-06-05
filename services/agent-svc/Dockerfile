@@ -16,8 +16,9 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o agent-svc agent-svc.go
+# Update go.mod/go.sum and build
+RUN go mod tidy && \
+    CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o agent-svc agent-svc.go
 
 # Runtime stage
 FROM alpine:latest

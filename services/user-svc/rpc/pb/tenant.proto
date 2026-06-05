@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package pb;
+
+option go_package = "agentmesh/user-svc/rpc/pb";
+
+import "google/protobuf/timestamp.proto";
+
+// Tenant message
+message Tenant {
+  int64 id = 1;
+  string name = 2;
+  string code = 3;
+  int32 status = 4;
+  string plan = 5;
+  int64 owner_id = 6;
+  string settings = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+// CreateTenant request
+message CreateTenantRequest {
+  string name = 1;
+  string code = 2;
+  string plan = 3;
+  int64 owner_id = 4;
+  string settings = 5;
+}
+
+// CreateTenant response
+message CreateTenantResponse {
+  Tenant tenant = 1;
+}
+
+// GetTenant request
+message GetTenantRequest {
+  int64 id = 1;
+}
+
+// GetTenant response
+message GetTenantResponse {
+  Tenant tenant = 1;
+}
+
+// ListTenants request
+message ListTenantsRequest {
+}
+
+// ListTenants response
+message ListTenantsResponse {
+  repeated Tenant tenants = 1;
+}
+
+// Tenant service
+service TenantService {
+  rpc CreateTenant(CreateTenantRequest) returns (CreateTenantResponse);
+  rpc GetTenant(GetTenantRequest) returns (GetTenantResponse);
+  rpc ListTenants(ListTenantsRequest) returns (ListTenantsResponse);
+}

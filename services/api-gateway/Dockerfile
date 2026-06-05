@@ -10,6 +10,7 @@ WORKDIR /build
 COPY go.mod go.sum ./
 
 # Download dependencies
+ENV GOTOOLCHAIN=auto
 RUN go mod download
 
 # Copy source code

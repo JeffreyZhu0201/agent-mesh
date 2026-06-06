@@ -19,8 +19,8 @@ type Claims struct {
 
 // AuthMiddleware handles JWT authentication
 type AuthMiddleware struct {
-	JWTSecret     string
-	PublicPaths   []string
+	JWTSecret   string
+	PublicPaths []string
 }
 
 // NewAuthMiddleware creates a new AuthMiddleware instance

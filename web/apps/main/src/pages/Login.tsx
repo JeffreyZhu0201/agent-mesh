@@ -11,7 +11,6 @@ import {
   Paper,
 } from '@mui/material';
 import { useAuthStore } from '@agentmesh/stores';
-import { authApi } from '@agentmesh/api';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -27,8 +26,7 @@ const Login: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await authApi.login({ username, password });
-      login(response.user, response.token);
+      await login(username, password);
       navigate('/app');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');

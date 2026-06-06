@@ -45,12 +45,15 @@ export function getRegisteredPlugins(): Plugin[] {
 }
 
 /**
- * Get all menu items from all registered plugins, sorted by order
+ * Get all menu items from all registered plugins, sorted by order.
+ * If `enabledKeys` is provided, only items from plugins whose metadata.name
+ * is in the set are returned. Pass null to skip filtering (default).
  */
-export function getMenuItems(): MenuItem[] {
+export function getMenuItems(enabledKeys?: Set<string> | null): MenuItem[] {
   const allMenuItems: MenuItem[] = [];
 
   registeredPlugins.forEach((plugin) => {
+    if (enabledKeys && !enabledKeys.has(plugin.metadata.name)) return;
     allMenuItems.push(...plugin.menuItems);
   });
 
@@ -58,12 +61,14 @@ export function getMenuItems(): MenuItem[] {
 }
 
 /**
- * Get all route configs from all registered plugins
+ * Get all route configs from all registered plugins.
+ * If `enabledKeys` is provided, only routes from enabled plugins are returned.
  */
-export function getRouteConfigs(): RouteConfig[] {
+export function getRouteConfigs(enabledKeys?: Set<string> | null): RouteConfig[] {
   const allRoutes: RouteConfig[] = [];
 
   registeredPlugins.forEach((plugin) => {
+    if (enabledKeys && !enabledKeys.has(plugin.metadata.name)) return;
     if (plugin.routes) {
       allRoutes.push(...plugin.routes);
     }
@@ -120,19 +125,23 @@ export function usePlugins(): Plugin[] {
 }
 
 /**
- * Hook to get all menu items (sorted by order, reactive)
+ * Hook to get all menu items (sorted by order, reactive).
+ * If `enabledKeys` is provided, only menu items from enabled plugins are shown.
  */
-export function useMenuItems(): MenuItem[] {
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => getMenuItems());
+export function useMenuItems(enabledKeys?: Set<string> | null): MenuItem[] {
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => getMenuItems(enabledKeys));
 
   useEffect(() => {
+    setMenuItems(getMenuItems(enabledKeys));
     const updateMenuItems = () => {
-      setMenuItems(getMenuItems());
+      setMenuItems(getMenuItems(enabledKeys));
     };
 
     const interval = setInterval(updateMenuItems, 1000);
     return () => clearInterval(interval);
-  }, []);
+    // Re-run when the set of enabled keys changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabledKeys]);
 
   return menuItems;
 }

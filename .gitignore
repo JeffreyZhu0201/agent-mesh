@@ -115,3 +115,15 @@ docker-compose.override.yml
 !README.md
 *.tmp
 *.temp
+
+# Built Go binaries (built locally for Docker)
+services/*/agent-svc
+services/*/plugin-svc
+services/*/user-svc
+services/*/api-gateway
+
+# Playwright artifacts
+.playwright-mcp/
+*-welcome.png
+*-with-code.png
+admin-plugins.png

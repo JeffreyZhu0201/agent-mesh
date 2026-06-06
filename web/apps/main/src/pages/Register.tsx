@@ -10,7 +10,6 @@ import {
   Alert,
   Paper,
 } from '@mui/material';
-import { authApi } from '@agentmesh/api';
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -38,7 +37,17 @@ const Register: React.FC = () => {
     setIsLoading(true);
 
     try {
-      await authApi.register({ username, password, email });
+      const response = await fetch('http://localhost:8080/api/user/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, email }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || 'Registration failed');
+      }
+
       navigate('/app/login');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');

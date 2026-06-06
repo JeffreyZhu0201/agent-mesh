@@ -1,5 +1,7 @@
 // Theme
 export { theme, default as themeDefault } from './theme';
+export { ThemeProvider } from './ThemeProvider';
+export type { ThemeProviderProps } from './ThemeProvider';
 
 // Components
 export { default as Layout } from './components/Layout';

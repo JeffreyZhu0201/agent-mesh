@@ -1,37 +1,16 @@
-# Build stage
-FROM golang:1.24-alpine AS builder
+# Use a pre-built binary to avoid Alpine network issues during build
+FROM alpine:3.20
 
-# Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata
-
-WORKDIR /build
-
-# Copy go.mod and go.sum
-COPY go.mod go.sum ./
-
-# Download dependencies
-ENV GOTOOLCHAIN=auto
-RUN go mod download
-
-# Copy source code
-COPY . .
-
-# Update go.mod/go.sum and build
-RUN go mod tidy && \
-    CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o agent-svc agent-svc.go
-
-# Runtime stage
-FROM alpine:latest
-
-RUN apk --no-cache add ca-certificates tzdata
+RUN apk --no-cache add ca-certificates tzdata || true
 
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=builder /build/agent-svc .
+# Copy pre-built binary
+COPY agent-svc /app/agent-svc
+COPY agent-svc.yaml /app/agent-svc.yaml
 
-# Expose port
+RUN chmod +x /app/agent-svc
+
 EXPOSE 8082
 
-# Run the application
-CMD ["./agent-svc", "-f", "agent-svc.yaml"]
+CMD ["/app/agent-svc", "-f", "agent-svc.yaml"]

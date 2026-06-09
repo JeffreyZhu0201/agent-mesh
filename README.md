@@ -16,22 +16,18 @@
   基于 Go + React 的全栈框架，内置多租户认证、RBAC 权限、插件系统
 </p>
 
-<p align="center">
-  <img src="./chat-welcome.png" width="600" alt="Chat Welcome Screen" />
-</p>
-
 ---
 
 ## ✨ 特性
 
 | 特性 | 说明 |
 |------|------|
-| 🏢 **多租户** | Schema 级租户隔离（shared-table），JWT 鉴权贯穿全链路 |
+| 🏢 **多租户** | 共享表隔离（tenant_id），JWT 鉴权贯穿全链路 |
 | 🔐 **RBAC 权限** | 平台管理员 / 管理员 / 普通用户 / 访客 四级角色 |
-| 🧩 **插件系统** | 前端模块注册 + 后端启用控制，租户级开关，LLM 为可选插件 |
+| 🧩 **插件系统** | 前端模块注册 + 后端启用控制，租户级开关 |
 | 🚀 **快速开发** | 面向 SaaS 后台的业务框架，登录即用、插件即插即用 |
 | 🎨 **现代化 UI** | React 18 + MUI + TypeScript，响应式布局 |
-| 🐳 **一键部署** | Docker Compose 编排，4 个微服务 + MySQL |
+| 🐳 **一键部署** | Docker Compose 编排，3 个微服务 + MySQL |
 
 ---
 
@@ -51,15 +47,15 @@
 │              │      🚪 API Gateway          │                         │
 │              │    Gin Reverse Proxy         │                         │
 │              │    :8080 · CORS · 路由转发    │                         │
-│              └──┬───────┬───────┬───────────┘                         │
-│                 │       │       │                                      │
-│          ┌──────▼──┐ ┌──▼────┐ ┌▼──────────┐                          │
-│          │ User   │ │ Agent │ │ Plugin    │                          │
-│          │ Service│ │Service│ │ Service   │                          │
-│          │ :8081  │ │:8082  │ │ :8083     │                          │
-│          │ 认证   │ │ AI    │ │ 插件管理   │                          │
-│          │ 用户   │ │ (可选) │ │ 租户开关  │                          │
-│          │ RBAC   │ │ 对话  │ │           │                          │
+│              └──┬───────┬───────────┐                              │
+│                 │       │           │                                      │
+│          ┌──────▼──┐ ┌──▼────┐ ┌───▼────┐                            │
+│          │ User   │ │ Plugin│ │         │                            │
+│          │ Service│ │Service│ │         │                            │
+│          │ :8081  │ │ :8083 │ │         │                            │
+│          │ 认证   │ │插件管理│ │         │                            │
+│          │ 用户   │ │租户开关│ │         │                            │
+│          │ RBAC   │ │       │ │         │                            │
 │              │         │           │                                  │
 │              └─────────┼───────────┘                                  │
 │                        │                                              │
@@ -75,8 +71,7 @@
 | 服务 | 端口 | 职责 | 技术亮点 |
 |------|------|------|----------|
 | **api-gateway** | `:8080` | 统一入口、路由转发、CORS | Gin Reverse Proxy |
-| **user-svc** | `:8081` | 用户注册/登录、JWT 签发 | bcrypt + JWT |
-| **agent-svc** | `:8082` | AI 对话（可选插件）| Eino + LLM 流式 SSE |
+| **user-svc** | `:8081` | 用户注册/登录、JWT 签发、RBAC | bcrypt + JWT |
 | **plugin-svc** | `:8083` | 插件注册表、租户启用/禁用 | GORM AutoMigrate |
 
 ### 前端架构
@@ -84,7 +79,7 @@
 ```
 web/
 ├── apps/
-│   ├── main/         🖥️  用户工作台 — 聊天、Dashboard
+│   ├── main/         🖥️  用户工作台 — 业务插件
 │   ├── admin/        ⚙️  管理后台 — 插件管理、租户配置
 │   └── landing/      📄  营销官网
 ├── packages/
@@ -113,7 +108,6 @@ AgentMesh 的插件系统分为两大部分：
 - 应用启动时从后端拉取租户的启用插件列表
 - 未启用的插件菜单和路由自动隐藏
 - 内置插件：**Dashboard**（看板）
-- 可选插件：**Chat**（LLM 对话，需启用 agent-svc）
 
 <p align="center">
   <img src="./admin-plugins.png" width="700" alt="Plugin Management" />
@@ -137,7 +131,7 @@ AgentMesh 的插件系统分为两大部分：
 git clone https://github.com/your-org/agentmesh.git
 cd agentmesh
 
-# 2. 启动所有服务（MySQL + 4 个微服务）
+# 2. 启动所有服务（MySQL + 3 个微服务）
 make docker-up
 
 # 3. 安装前端依赖并启动
@@ -199,26 +193,6 @@ npm run lint       # 代码检查
 5. 各微服务通过 JWT 中间件解析 userId / tenantId / role
 ```
 
-### AI 对话配置（可选）
-
-`agent-svc` 为可选插件，支持多种 LLM 后端，通过环境变量配置：
-
-```bash
-# 方式一：Anthropic Claude
-ANTHROPIC_API_KEY=sk-xxx
-ANTHROPIC_BASE_URL=https://api.anthropic.com
-ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
-
-# 方式二：OpenAI 兼容接口（如 Volcengine Ark）
-LLM_API_KEY=xxx
-LLM_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
-LLM_MODEL=ep-xxxx-yyyyy
-```
-
-<p align="center">
-  <img src="./chat-with-code.png" width="700" alt="Chat with Code Highlighting" />
-</p>
-
 ---
 
 ## 📁 项目结构
@@ -228,7 +202,6 @@ AgentMesh/
 ├── services/                 # 🎯 Go 微服务
 │   ├── api-gateway/         #  API 网关（Gin Reverse Proxy）
 │   ├── user-svc/            #  用户认证服务
-│   ├── agent-svc/           #  AI 对话服务（可选插件）
 │   └── plugin-svc/          #  插件管理服务
 ├── web/                     # 🎨 前端 Monorepo
 │   ├── apps/
@@ -255,7 +228,6 @@ AgentMesh/
 |----|------|------|
 | 后端语言 | Go 1.24+ | 高性能微服务 |
 | **Web 框架** | Gin | HTTP 路由、中间件 |
-| **AI 框架** | Eino（可选）| LLM 调用编排（插件） |
 | **数据库** | MySQL 8.0 + GORM | 持久化存储 |
 | **认证** | JWT + bcrypt | 安全鉴权 |
 | **前端** | React 18 + TypeScript | 用户界面 |
@@ -273,8 +245,6 @@ AgentMesh/
 | `POST` | `/api/user/register` | 用户注册 | user-svc |
 | `POST` | `/api/user/login` | 用户登录 → JWT | user-svc |
 | `GET` | `/api/user/info` | 获取用户信息 🔐 | user-svc |
-| `POST` | `/api/agent/chat` | AI 对话（SSE 流式）🔐 | agent-svc |
-| `GET` | `/api/agent/conversations` | 会话历史列表 🔐 | agent-svc |
 | `GET` | `/api/plugin/list` | 租户可见插件列表 🔐 | plugin-svc |
 | `GET` | `/api/plugin/admin/list` | 全部插件（含状态）🔐 | plugin-svc |
 | `POST` | `/api/plugin/admin/toggle` | 切换插件启用状态 🔐 | plugin-svc |

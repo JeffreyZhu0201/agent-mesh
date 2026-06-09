@@ -116,23 +116,23 @@ export function Home() {
   const features = [
     {
       icon: <AutoAwesome sx={{ fontSize: 48, color: '#22C55E' }} />,
-      title: 'AI Native',
-      description: 'Built-in Eino integration for seamless AI agent orchestration and LLM management',
+      title: 'Multi-Tenant',
+      description: 'Multi-tenant architecture with shared-table isolation. JWT auth across all services',
+    },
+    {
+      icon: <AutoAwesome sx={{ fontSize: 48, color: '#22C55E' }} />,
+      title: 'Multi-Tenant',
+      description: 'Multi-tenant architecture with shared-table isolation. JWT auth across all services',
     },
     {
       icon: <Extension sx={{ fontSize: 48, color: '#6366F1' }} />,
-      title: 'Plugin System',
-      description: 'Dynamic plugin loading for unlimited extensibility. Build and deploy plugins at runtime',
-    },
-    {
-      icon: <Security sx={{ fontSize: 48, color: '#F59E0B' }} />,
-      title: 'SaaS Ready',
-      description: 'Multi-tenant architecture with schema-level isolation for enterprise security',
+      title: 'RBAC Built-In',
+      description: 'Four-tier roles: platform_admin / admin / user / viewer. JWT auth across all services',
     },
     {
       icon: <Speed sx={{ fontSize: 48, color: '#EC4899' }} />,
       title: 'High Performance',
-      description: 'Go-zero microservices with gRPC communication for blazing fast responses',
+      description: 'Go microservices with Gin + GORM. High performance, low latency',
     },
   ];
 
@@ -140,18 +140,18 @@ export function Home() {
     {
       name: 'Sarah Chen',
       role: 'CTO at TechCorp',
-      content: 'AgentMesh accelerated our AI product development by 3x. The plugin system is incredibly well-designed.',
+      content: 'AgentMesh accelerated our SaaS development by 3x. The plugin system is incredibly well-designed.',
       rating: 5,
     },
     {
       name: 'Michael Park',
       role: 'Lead Developer at StartupXYZ',
-      content: 'Finally, a framework that makes multi-tenant AI apps easy. The architecture is clean and extensible.',
+      content: 'Finally, a framework that makes multi-tenant SaaS apps easy. The architecture is clean and extensible.',
       rating: 5,
     },
     {
       name: 'Emily Johnson',
-      role: 'Product Manager at AI Labs',
+      role: 'Product Manager at TechCorp',
       content: 'We built our entire SaaS platform on AgentMesh. The code quality and documentation are excellent.',
       rating: 5,
     },
@@ -274,7 +274,7 @@ export function Home() {
                     lineHeight: 1.1,
                   }}
                 >
-                  Build AI Applications
+                  Build SaaS Applications
                   <Box
                     component="span"
                     sx={{
@@ -298,7 +298,7 @@ export function Home() {
                   }}
                 >
                   A comprehensive SaaS framework with go-zero microservices,
-                  React frontend, and Eino-powered AI agents.
+                  React frontend, and a powerful plugin SDK.
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                   <Button
@@ -405,7 +405,7 @@ export function Home() {
                 mx: 'auto',
               }}
             >
-              A complete framework for building production-ready AI SaaS applications
+              A complete framework for building production-ready multi-tenant SaaS applications
             </Typography>
           </Box>
           <Grid container spacing={4}>
@@ -571,7 +571,7 @@ export function Home() {
               fontFamily: '"DM Sans", sans-serif',
             }}
           >
-            Start your AI application development today
+            Start your SaaS development today
           </Typography>
           <Button
             variant="contained"

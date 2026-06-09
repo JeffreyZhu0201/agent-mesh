@@ -13,7 +13,7 @@ GOVENDOR=$(GOCMD) vendor
 COMPOSE=docker-compose
 
 # Service paths
-SERVICES:=api-gateway user-svc agent-svc plugin-svc
+SERVICES:=api-gateway user-svc plugin-svc
 
 # Default target
 help:

@@ -39,20 +39,16 @@ func main() {
 
 	// Service URLs from env vars (Docker service names) with localhost defaults
 	userSvcAddr := getEnv("USER_SVC_URL", "http://user-svc:8081")
-	agentSvcAddr := getEnv("AGENT_SVC_URL", "http://agent-svc:8082")
 	pluginSvcAddr := getEnv("PLUGIN_SVC_URL", "http://plugin-svc:8083")
 
 	userSvcURL, _ := url.Parse(userSvcAddr)
-	agentSvcURL, _ := url.Parse(agentSvcAddr)
 	pluginSvcURL, _ := url.Parse(pluginSvcAddr)
 
 	r.Any("/api/user/*path", createProxy(userSvcURL, "/api/user"))
-	r.Any("/api/agent/*path", createProxy(agentSvcURL, "/api/agent"))
 	r.Any("/api/plugin/*path", createProxy(pluginSvcURL, "/api/plugin"))
 
 	fmt.Printf("Starting API Gateway at port 8080...\n")
 	fmt.Printf("  user-svc: %s\n", userSvcAddr)
-	fmt.Printf("  agent-svc: %s\n", agentSvcAddr)
 	fmt.Printf("  plugin-svc: %s\n", pluginSvcAddr)
 	r.Run(":8080")
 }

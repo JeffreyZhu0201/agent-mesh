@@ -1,45 +1,8 @@
 name: agentmesh/api-gateway
 port: 8080
 
-microservices:
-  user:
-    endpoint: grpc://localhost:8081
-    transport: grpc
-  agent:
-    endpoint: grpc://localhost:8082
-    transport: grpc
-  plugin:
-    endpoint: grpc://localhost:8083
-    transport: grpc
-
-middleware:
-  - name: cors
-    config:
-      allowedOrigins:
-        - "*"
-      allowedMethods:
-        - GET
-        - POST
-        - PUT
-        - DELETE
-        - OPTIONS
-      allowedHeaders:
-        - "*"
-  - name: tenant
-    config:
-      headerKey: X-Tenant-ID
-  - name: auth
-    config:
-      jwtKey: agentmesh-secret-key
-      signKey: agentmesh-signing-key
-
 routes:
   - path: /api/user
-    microservice: user
-    handler: UserHandler
-  - path: /api/agent
-    microservice: agent
-    handler: AgentHandler
+    target: http://user-svc:8081
   - path: /api/plugin
-    microservice: plugin
-    handler: PluginHandler
+    target: http://plugin-svc:8083

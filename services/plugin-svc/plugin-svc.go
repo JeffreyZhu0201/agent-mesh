@@ -14,42 +14,87 @@ import (
 	"gorm.io/gorm"
 )
 
-var configFile = flag.String("f", "plugin-svc.yaml", "the config file")
-var jwtSecret = []byte("agentmesh-secret-key-change-in-production") // same as user-svc
+// =============================================================================
+// plugin-svc 插件管理服务
+// =============================================================================
+// 职责：
+//   - 维护插件注册表（plugins），记录系统中所有可用的插件
+//   - 维护租户级插件开关（tenant_plugins），支持插件启用/禁用
+//   - 提供三个 API 端点给前端和管理后台使用
+//
+// 数据库设计：
+//   plugins         — 插件注册表，所有租户共享一份
+//     plugin_key: 唯一标识，如 "dashboard"
+//     builtin:    是否内置插件（内置不能删除）
+//
+//   tenant_plugins — 租户级启用状态（可选记录）
+//     无记录 = 默认启用（enabled=true）
+//     有记录 = 以记录的 enabled 为准
+//
+// JWT 上下文：
+//   本服务不验证 JWT 签名（由 api-gateway 统一验证）
+//   直接从请求头 X-Tenant-ID 取 tenant_id 进行过滤
+// =============================================================================
 
+var configFile = flag.String("f", "plugin-svc.yaml", "the config file")
+
+// jwtSecret 与 user-svc 保持一致，用于解析 JWT Token 中的租户上下文
+// 注意：生产环境应由 api-gateway 统一验证 JWT，本服务只解析 tenant_id
+var jwtSecret = []byte("agentmesh-secret-key-change-in-production")
+
+// Config 服务配置结构，对应 plugin-svc.yaml
 type Config struct {
 	Name string `yaml:"name"`
 	Port int    `yaml:"port"`
 }
 
+// Plugin 插件注册表模型
+// 所有租户共享同一套插件定义，plugin_key 是唯一标识
 type Plugin struct {
 	ID          uint   `gorm:"primaryKey"`
-	PluginKey   string `gorm:"column:plugin_key;size:64;uniqueIndex;not null"`
-	Name        string `gorm:"size:255;not null"`
-	Version     string `gorm:"size:32;not null"`
-	Type        string `gorm:"size:32"`
-	Description string `gorm:"type:text"`
-	Author      string `gorm:"size:255"`
-	Builtin     bool   `gorm:"default:true"`
+	PluginKey   string `gorm:"column:plugin_key;size:64;uniqueIndex;not null"` // 插件唯一标识，如 "chat"、"dashboard"
+	Name        string `gorm:"size:255;not null"`                              // 插件显示名称
+	Version     string `gorm:"size:32;not null"`                                // 版本号
+	Type        string `gorm:"size:32"`                                         // 插件类型，如 "page"、"widget"
+	Description string `gorm:"type:text"`                                       // 插件描述
+	Author      string `gorm:"size:255"`                                        // 作者
+	Builtin     bool   `gorm:"default:true"`                                   // 是否内置插件（内置不可删除）
 	CreatedAt   time.Time
 }
 
+// TenantPlugin 租户级插件启用状态模型
+// 用于覆盖插件的默认启用状态，实现租户粒度的插件管理
+//
+// 语义规则：
+//   - 表中无该租户的记录 → 插件默认启用（enabled=true）
+//   - 表中有该租户的记录 → 以记录的 enabled 为准
 type TenantPlugin struct {
-	ID         uint   `gorm:"primaryKey"`
-	TenantID   uint   `gorm:"column:tenant_id;uniqueIndex:uq_tenant_plugin;not null"`
-	PluginKey  string `gorm:"column:plugin_key;size:64;uniqueIndex:uq_tenant_plugin;not null"`
-	Enabled    bool   `gorm:"default:true"`
+	ID         uint      `gorm:"primaryKey"`
+	TenantID   uint      `gorm:"column:tenant_id;uniqueIndex:uq_tenant_plugin;not null"` // 租户 ID
+	PluginKey  string    `gorm:"column:plugin_key;size:64;uniqueIndex:uq_tenant_plugin;not null"`
+	Enabled    bool      `gorm:"default:true"` // 插件启用状态
 	UpdatedAt  time.Time
 }
 
+// Claims JWT Token 中的用户声明结构
+// 本服务主要使用 TenantID 进行数据隔离
 type Claims struct {
 	UserID   uint   `json:"userId"`
 	Username string `json:"username"`
-	TenantID uint   `json:"tenantId"`
+	TenantID uint   `json:"tenantId"` // 租户 ID，用于插件数据隔离
 	Role     string `json:"role"`
 	jwt.RegisteredClaims
 }
 
+// getDB 初始化数据库连接
+// 优先级：环境变量 > 默认值（本地开发环境）
+//
+// 环境变量：
+//   DB_HOST     数据库主机，默认 localhost
+//   DB_PORT     数据库端口，默认 3306
+//   DB_USER     数据库用户名，默认 root
+//   DB_PASSWORD 数据库密码，默认 root123
+//   DB_NAME     数据库名，默认 agentmesh
 func getDB() *gorm.DB {
 	host := os.Getenv("DB_HOST")
 	if host == "" {
@@ -82,10 +127,18 @@ func getDB() *gorm.DB {
 	return db
 }
 
+// migrate 自动迁移数据库表结构
+// 会根据模型定义创建/更新 plugins 和 tenant_plugins 表
 func migrate(db *gorm.DB) {
 	db.AutoMigrate(&Plugin{}, &TenantPlugin{})
 }
 
+// seedPlugins 初始化内置插件数据
+// 只在插件不存在时才插入，确保多次启动不会重复创建
+//
+// 内置插件：
+//   - chat:      AI 对话插件，支持多模型切换
+//   - dashboard: 数据分析仪表板插件
 func seedPlugins(db *gorm.DB) {
 	builtins := []Plugin{
 		{
@@ -117,6 +170,15 @@ func seedPlugins(db *gorm.DB) {
 	}
 }
 
+// authMiddleware JWT 认证中间件
+//
+// 设计说明：
+//   - 本服务信任 api-gateway 传来的 Authorization header
+//   - api-gateway 已在入口处验证 JWT 签名并注入 X-Tenant-ID
+//   - 这里只解析 JWT 获取 tenant_id 和用户信息
+//
+// 注意：生产环境建议移除此中间件，直接由 api-gateway 验证
+//       或者使用内部 RPC 调用获取租户上下文
 func authMiddleware(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
@@ -144,12 +206,28 @@ func authMiddleware(c *gin.Context) {
 		return
 	}
 
+	// 将解析出的用户信息存入 Gin Context，供后续 handler 使用
 	c.Set("userId", claims.UserID)
 	c.Set("tenantId", claims.TenantID)
 	c.Set("role", claims.Role)
 	c.Next()
 }
 
+// =============================================================================
+// main 函数入口
+// =============================================================================
+// 启动流程：
+//   1. 解析命令行参数（-f 指定配置文件）
+//   2. 连接数据库并自动迁移表结构
+//   3. 初始化内置插件数据
+//   4. 注册路由并启动 HTTP 服务（端口 8083）
+//
+// 路由设计：
+//   GET  /health           — 健康检查（无需认证）
+//   GET  /api/plugin/list  — 获取当前租户已启用的插件列表（前端用）
+//   GET  /api/plugin/admin/list  — 获取所有插件及启用状态（管理后台用）
+//   POST /api/plugin/admin/toggle — 启用/禁用插件（管理后台用）
+// =============================================================================
 func main() {
 	flag.Parse()
 
@@ -159,22 +237,48 @@ func main() {
 
 	r := gin.Default()
 
-	// (CORS is handled by the api-gateway; setting it here too causes duplicate headers.)
+	// CORS 由 api-gateway 统一处理，本服务不再重复设置避免响应头冲突
 
+	// -----------------------------------------------------------------------------
+	// 健康检查端点
+	// -----------------------------------------------------------------------------
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	// -----------------------------------------------------------------------------
+	// 插件管理 API（需认证）
+	// -----------------------------------------------------------------------------
 	authed := r.Group("/api/plugin", authMiddleware)
 	{
-		// Public list: only enabled plugins for the tenant
+		// -----------------------------------------------------------------------------
+		// GET /api/plugin/list
+		// 获取当前租户已启用的插件列表（供前端渲染菜单）
+		//
+		// 返回数据：
+		//   仅返回 enabled=true 的插件
+		//   语义：tenant_plugins 表中无记录 = 默认启用
+		//
+		// 请求示例：
+		//   curl -H "Authorization: Bearer <token>" http://localhost:8083/api/plugin/list
+		//
+		// 响应示例：
+		//   {
+		//     "plugins": [
+		//       {"key": "chat", "name": "Chat", "version": "0.1.0", ...},
+		//       {"key": "dashboard", "name": "Dashboard", ...}
+		//     ]
+		//   }
+		// -----------------------------------------------------------------------------
 		authed.GET("/list", func(c *gin.Context) {
 			tenantID, _ := c.Get("tenantId")
 
+			// 查询所有注册插件
 			var allPlugins []Plugin
 			db.Find(&allPlugins)
 
-			// Build a set of explicitly disabled plugins for this tenant
+			// 构建当前租户已禁用的插件集合
+			// 查询 tenant_plugins 表中该租户明确设置为 disabled 的记录
 			type tp struct {
 				PluginKey string `gorm:"column:plugin_key"`
 				Enabled   bool   `gorm:"column:enabled"`
@@ -183,6 +287,7 @@ func main() {
 			db.Table("tenant_plugins").Select("plugin_key, enabled").
 				Where("tenant_id = ?", tenantID).Scan(&tps)
 
+			// 收集被禁用插件的 plugin_key
 			disabled := make(map[string]bool)
 			for _, t := range tps {
 				if !t.Enabled {
@@ -190,11 +295,12 @@ func main() {
 				}
 			}
 
-			// Return only enabled plugins
+			// 过滤并返回已启用的插件
+			// 注意：不在 disabled 集合中的插件视为启用（默认语义）
 			result := make([]gin.H, 0, len(allPlugins))
 			for _, p := range allPlugins {
 				if disabled[p.PluginKey] {
-					continue
+					continue // 跳过已禁用的插件
 				}
 				result = append(result, gin.H{
 					"key":         p.PluginKey,
@@ -203,21 +309,41 @@ func main() {
 					"type":        p.Type,
 					"description": p.Description,
 					"author":      p.Author,
-					"enabled":     true,
+					"enabled":     true, // 对前端明确标记为启用
 				})
 			}
 
 			c.JSON(http.StatusOK, gin.H{"plugins": result})
 		})
 
-		// Admin list: all plugins with enable/disable state
+		// -----------------------------------------------------------------------------
+		// GET /api/plugin/admin/list
+		// 获取所有插件及其启用状态（供管理后台展示完整的插件状态列表）
+		//
+		// 返回数据：
+		//   - 所有插件（不限启用状态）
+		//   - 每个插件的 enabled 字段反映其实际状态
+		//     - 无 tenant_plugins 记录 → enabled=true（默认）
+		//     - 有 tenant_plugins 记录 → 以记录的 enabled 为准
+		//
+		// 请求示例：
+		//   curl -H "Authorization: Bearer <token>" http://localhost:8083/api/plugin/admin/list
+		//
+		// 响应示例：
+		//   {
+		//     "plugins": [
+		//       {"key": "chat", "name": "Chat", "enabled": true, ...},
+		//       {"key": "dashboard", "name": "Dashboard", "enabled": false, ...}
+		//     ]
+		//   }
+		// -----------------------------------------------------------------------------
 		authed.GET("/admin/list", func(c *gin.Context) {
 			tenantID, _ := c.Get("tenantId")
 
 			var allPlugins []Plugin
 			db.Find(&allPlugins)
 
-			// Fetch tenant enable state
+			// 查询该租户在 tenant_plugins 表中的所有记录
 			type tp struct {
 				PluginKey string `gorm:"column:plugin_key"`
 				Enabled   bool   `gorm:"column:enabled"`
@@ -226,6 +352,8 @@ func main() {
 			db.Table("tenant_plugins").Select("plugin_key, enabled").
 				Where("tenant_id = ?", tenantID).Scan(&tps)
 
+			// state[p.plugin_key] = enabled 值
+			// explicit[p.plugin_key] = true 表示有明确记录
 			state := make(map[string]bool)
 			explicit := make(map[string]bool)
 			for _, t := range tps {
@@ -235,7 +363,9 @@ func main() {
 
 			result := make([]gin.H, 0, len(allPlugins))
 			for _, p := range allPlugins {
-				enabled := true // default
+				// 默认启用（无记录 = 启用）
+				enabled := true
+				// 如果有明确记录，以记录为准
 				if explicit[p.PluginKey] {
 					enabled = state[p.PluginKey]
 				}
@@ -246,34 +376,56 @@ func main() {
 					"type":        p.Type,
 					"description": p.Description,
 					"author":      p.Author,
-					"enabled":     enabled,
+					"enabled":     enabled, // 管理后台需要看到真实状态
 				})
 			}
 
 			c.JSON(http.StatusOK, gin.H{"plugins": result})
 		})
 
-		// Admin toggle: flip enabled state for (tenant, plugin)
+		// -----------------------------------------------------------------------------
+		// POST /api/plugin/admin/toggle
+		// 启用或禁用指定插件（供管理后台操作）
+		//
+		// 请求体：
+		//   {
+		//     "pluginKey": "dashboard",  // 插件唯一标识（必填）
+		//     "enabled": false          // true=启用，false=禁用
+		//   }
+		//
+		// 实现逻辑（Upsert）：
+		//   - 如果 tenant_plugins 表中已有该租户+插件的记录 → 更新 enabled 字段
+		//   - 如果没有记录 → 插入新记录
+		//
+		// 请求示例：
+		//   curl -X POST -H "Authorization: Bearer <token>" \
+		//        -H "Content-Type: application/json" \
+		//        -d '{"pluginKey": "dashboard", "enabled": false}' \
+		//        http://localhost:8083/api/plugin/admin/toggle
+		//
+		// 响应示例：
+		//   {"message": "ok"}
+		// -----------------------------------------------------------------------------
 		authed.POST("/admin/toggle", func(c *gin.Context) {
 			tenantID, _ := c.Get("tenantId")
 
 			var req struct {
-				PluginKey string `json:"pluginKey" binding:"required"`
-				Enabled   bool   `json:"enabled"`
+				PluginKey string `json:"pluginKey" binding:"required"` // 插件唯一标识
+				Enabled   bool   `json:"enabled"`                      // 目标状态
 			}
 			if err := c.ShouldBindJSON(&req); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid request"})
 				return
 			}
 
-			// Verify plugin exists
+			// 验证插件是否存在（基于 plugins 注册表）
 			var plugin Plugin
 			if err := db.Where("plugin_key = ?", req.PluginKey).First(&plugin).Error; err != nil {
 				c.JSON(http.StatusNotFound, gin.H{"message": "plugin not found"})
 				return
 			}
 
-			// Upsert the tenant_plugin row
+			// Upsert：存在则更新，不存在则创建
 			var tp TenantPlugin
 			db.Where("tenant_id = ? AND plugin_key = ?", tenantID, req.PluginKey).First(&tp)
 			tp.TenantID = tenantID.(uint)
@@ -282,9 +434,9 @@ func main() {
 			tp.UpdatedAt = time.Now()
 
 			if tp.ID == 0 {
-				db.Create(&tp)
+				db.Create(&tp) // 新建
 			} else {
-				db.Save(&tp)
+				db.Save(&tp) // 更新
 			}
 
 			c.JSON(http.StatusOK, gin.H{"message": "ok"})

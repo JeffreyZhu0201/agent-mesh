@@ -1,6 +1,34 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
+// ==================== Zustand Store 状态管理说明 ====================
+// Zustand 是 React 的轻量级状态管理库
+// 这个 authStore 管理用户的认证状态
+//
+// 状态结构 (State):
+// - user: User | null - 当前登录用户信息
+// - token: string | null - JWT 认证令牌
+// - isAuthenticated: boolean - 是否已认证 (由 user 和 token 计算得出)
+//
+// 操作方法 (Actions):
+// - login(username, password): 登录，调用后端 API 获取 token 和 user
+// - logout(): 退出登录，清除所有状态
+// - setToken(token): 设置 token
+// - setUser(user): 设置用户信息
+//
+// 持久化机制:
+// - 使用 zustand/middleware 的 persist 中间件
+// - 存储键名: 'auth-storage' (localStorage)
+// - partialize: 只持久化 user, token, isAuthenticated (不持久化 loading 等状态)
+// - 刷新页面后自动从 localStorage 恢复登录状态
+//
+// isAuthenticated 计算逻辑:
+// - 每次 setState 时动态计算
+// - setToken: 如果已有 user，则 isAuthenticated = true
+// - setUser: 直接设置 isAuthenticated = true
+// - logout: 直接设置 isAuthenticated = false
+// ==================== Zustand Store 状态管理说明 END ====================
+
 export interface User {
   id: number;
   username: string;

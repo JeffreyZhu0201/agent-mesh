@@ -8,4 +8,5 @@
  * To add a new plugin, drop a folder under src/plugins/<name>/
  * with an `index.ts` that calls registerPlugin(), then import it here.
  */
-import './chat';
+// Chat plugin is temporarily disabled (agent-svc kept as optional)
+// import './chat';

@@ -47,6 +47,8 @@ interface AuthState {
   setUser: (user: User) => void;
 }
 
+const API_BASE = 'http://localhost:8080/api';
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -55,19 +57,28 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
 
       login: async (username: string, password: string) => {
-        const response = await fetch('http://localhost:8080/api/user/login', {
+        const response = await fetch(`${API_BASE}/user/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password }),
         });
 
+        const body = await response.json();
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Login failed');
+          throw new Error(body.error || body.message || 'Login failed');
         }
 
-        const data = await response.json();
-        set({ user: data.user, token: data.token, isAuthenticated: true });
+        const payload = body.data ?? body;
+        const rawUser = payload.user ?? {};
+        const user: User = {
+          id: rawUser.id ?? rawUser.userId,
+          username: rawUser.username,
+          email: rawUser.email ?? '',
+          tenantId: rawUser.tenantId ?? 0,
+          role: rawUser.role ?? 'viewer',
+        };
+
+        set({ user, token: payload.token, isAuthenticated: true });
       },
 
       logout: () => {

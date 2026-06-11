@@ -6,7 +6,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "vitest run --root ../.. packages/plugin-sdk"
   },
   "peerDependencies": {
     "react": ">=17.0.0",

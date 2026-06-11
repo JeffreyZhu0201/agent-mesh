@@ -43,9 +43,9 @@ const Register: React.FC = () => {
         body: JSON.stringify({ username, password, email }),
       });
 
+      const body = await response.json();
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || 'Registration failed');
+        throw new Error(body.error || body.message || 'Registration failed');
       }
 
       navigate('/app/login');

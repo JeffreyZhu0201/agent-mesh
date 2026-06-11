@@ -24,6 +24,7 @@ help:
 	@echo "docker-up    - Start all services with docker-compose"
 	@echo "docker-down  - Stop all docker-compose services"
 	@echo "test         - Run tests for all services"
+	@echo "test-coverage - Run Go and frontend tests with coverage"
 	@echo "build        - Build all service binaries"
 	@echo "clean        - Clean build artifacts"
 
@@ -52,8 +53,16 @@ docker-down:
 test:
 	@for svc in $(SERVICES); do \
 		echo "Testing $$svc..."; \
-		cd services/$$svc && $(GOTEST) ./... && cd ../..; \
+		(cd services/$$svc && $(GOTEST) ./...); \
 	done
+
+test-coverage:
+	@for svc in $(SERVICES); do \
+		echo "Coverage for $$svc..."; \
+		(cd services/$$svc && $(GOTEST) -cover ./...); \
+	done
+	@echo "Frontend coverage:"; \
+	cd web && pnpm test:coverage
 
 build:
 	@echo "Building all services..."

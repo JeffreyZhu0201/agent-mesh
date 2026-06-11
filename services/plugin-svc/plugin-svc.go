@@ -38,6 +38,9 @@ import (
 
 var configFile = flag.String("f", "plugin-svc.yaml", "the config file")
 
+// db is the shared database handle used by handlers and tests.
+var db *gorm.DB
+
 // jwtSecret 与 user-svc 保持一致，用于解析 JWT Token 中的租户上下文
 // 注意：生产环境应由 api-gateway 统一验证 JWT，本服务只解析 tenant_id
 var jwtSecret = []byte("agentmesh-secret-key-change-in-production")
@@ -72,7 +75,7 @@ type TenantPlugin struct {
 	ID         uint      `gorm:"primaryKey"`
 	TenantID   uint      `gorm:"column:tenant_id;uniqueIndex:uq_tenant_plugin;not null"` // 租户 ID
 	PluginKey  string    `gorm:"column:plugin_key;size:64;uniqueIndex:uq_tenant_plugin;not null"`
-	Enabled    bool      `gorm:"default:true"` // 插件启用状态
+	Enabled    bool      // 插件启用状态；无记录时应用层默认启用
 	UpdatedAt  time.Time
 }
 
@@ -231,54 +234,30 @@ func authMiddleware(c *gin.Context) {
 func main() {
 	flag.Parse()
 
-	db := getDB()
+	db = getDB()
 	migrate(db)
 	seedPlugins(db)
 
 	r := gin.Default()
+	registerRoutes(r)
 
-	// CORS 由 api-gateway 统一处理，本服务不再重复设置避免响应头冲突
+	fmt.Println("Starting Plugin Service at port 8083...")
+	r.Run(":8083")
+}
 
-	// -----------------------------------------------------------------------------
-	// 健康检查端点
-	// -----------------------------------------------------------------------------
+func registerRoutes(r *gin.Engine) {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
-	// -----------------------------------------------------------------------------
-	// 插件管理 API（需认证）
-	// -----------------------------------------------------------------------------
 	authed := r.Group("/api/plugin", authMiddleware)
 	{
-		// -----------------------------------------------------------------------------
-		// GET /api/plugin/list
-		// 获取当前租户已启用的插件列表（供前端渲染菜单）
-		//
-		// 返回数据：
-		//   仅返回 enabled=true 的插件
-		//   语义：tenant_plugins 表中无记录 = 默认启用
-		//
-		// 请求示例：
-		//   curl -H "Authorization: Bearer <token>" http://localhost:8083/api/plugin/list
-		//
-		// 响应示例：
-		//   {
-		//     "plugins": [
-		//       {"key": "chat", "name": "Chat", "version": "0.1.0", ...},
-		//       {"key": "dashboard", "name": "Dashboard", ...}
-		//     ]
-		//   }
-		// -----------------------------------------------------------------------------
 		authed.GET("/list", func(c *gin.Context) {
 			tenantID, _ := c.Get("tenantId")
 
-			// 查询所有注册插件
 			var allPlugins []Plugin
 			db.Find(&allPlugins)
 
-			// 构建当前租户已禁用的插件集合
-			// 查询 tenant_plugins 表中该租户明确设置为 disabled 的记录
 			type tp struct {
 				PluginKey string `gorm:"column:plugin_key"`
 				Enabled   bool   `gorm:"column:enabled"`
@@ -287,7 +266,6 @@ func main() {
 			db.Table("tenant_plugins").Select("plugin_key, enabled").
 				Where("tenant_id = ?", tenantID).Scan(&tps)
 
-			// 收集被禁用插件的 plugin_key
 			disabled := make(map[string]bool)
 			for _, t := range tps {
 				if !t.Enabled {
@@ -295,12 +273,10 @@ func main() {
 				}
 			}
 
-			// 过滤并返回已启用的插件
-			// 注意：不在 disabled 集合中的插件视为启用（默认语义）
 			result := make([]gin.H, 0, len(allPlugins))
 			for _, p := range allPlugins {
 				if disabled[p.PluginKey] {
-					continue // 跳过已禁用的插件
+					continue
 				}
 				result = append(result, gin.H{
 					"key":         p.PluginKey,
@@ -309,41 +285,19 @@ func main() {
 					"type":        p.Type,
 					"description": p.Description,
 					"author":      p.Author,
-					"enabled":     true, // 对前端明确标记为启用
+					"enabled":     true,
 				})
 			}
 
 			c.JSON(http.StatusOK, gin.H{"plugins": result})
 		})
 
-		// -----------------------------------------------------------------------------
-		// GET /api/plugin/admin/list
-		// 获取所有插件及其启用状态（供管理后台展示完整的插件状态列表）
-		//
-		// 返回数据：
-		//   - 所有插件（不限启用状态）
-		//   - 每个插件的 enabled 字段反映其实际状态
-		//     - 无 tenant_plugins 记录 → enabled=true（默认）
-		//     - 有 tenant_plugins 记录 → 以记录的 enabled 为准
-		//
-		// 请求示例：
-		//   curl -H "Authorization: Bearer <token>" http://localhost:8083/api/plugin/admin/list
-		//
-		// 响应示例：
-		//   {
-		//     "plugins": [
-		//       {"key": "chat", "name": "Chat", "enabled": true, ...},
-		//       {"key": "dashboard", "name": "Dashboard", "enabled": false, ...}
-		//     ]
-		//   }
-		// -----------------------------------------------------------------------------
 		authed.GET("/admin/list", func(c *gin.Context) {
 			tenantID, _ := c.Get("tenantId")
 
 			var allPlugins []Plugin
 			db.Find(&allPlugins)
 
-			// 查询该租户在 tenant_plugins 表中的所有记录
 			type tp struct {
 				PluginKey string `gorm:"column:plugin_key"`
 				Enabled   bool   `gorm:"column:enabled"`
@@ -352,8 +306,6 @@ func main() {
 			db.Table("tenant_plugins").Select("plugin_key, enabled").
 				Where("tenant_id = ?", tenantID).Scan(&tps)
 
-			// state[p.plugin_key] = enabled 值
-			// explicit[p.plugin_key] = true 表示有明确记录
 			state := make(map[string]bool)
 			explicit := make(map[string]bool)
 			for _, t := range tps {
@@ -363,9 +315,7 @@ func main() {
 
 			result := make([]gin.H, 0, len(allPlugins))
 			for _, p := range allPlugins {
-				// 默认启用（无记录 = 启用）
 				enabled := true
-				// 如果有明确记录，以记录为准
 				if explicit[p.PluginKey] {
 					enabled = state[p.PluginKey]
 				}
@@ -376,73 +326,54 @@ func main() {
 					"type":        p.Type,
 					"description": p.Description,
 					"author":      p.Author,
-					"enabled":     enabled, // 管理后台需要看到真实状态
+					"enabled":     enabled,
 				})
 			}
 
 			c.JSON(http.StatusOK, gin.H{"plugins": result})
 		})
 
-		// -----------------------------------------------------------------------------
-		// POST /api/plugin/admin/toggle
-		// 启用或禁用指定插件（供管理后台操作）
-		//
-		// 请求体：
-		//   {
-		//     "pluginKey": "dashboard",  // 插件唯一标识（必填）
-		//     "enabled": false          // true=启用，false=禁用
-		//   }
-		//
-		// 实现逻辑（Upsert）：
-		//   - 如果 tenant_plugins 表中已有该租户+插件的记录 → 更新 enabled 字段
-		//   - 如果没有记录 → 插入新记录
-		//
-		// 请求示例：
-		//   curl -X POST -H "Authorization: Bearer <token>" \
-		//        -H "Content-Type: application/json" \
-		//        -d '{"pluginKey": "dashboard", "enabled": false}' \
-		//        http://localhost:8083/api/plugin/admin/toggle
-		//
-		// 响应示例：
-		//   {"message": "ok"}
-		// -----------------------------------------------------------------------------
 		authed.POST("/admin/toggle", func(c *gin.Context) {
 			tenantID, _ := c.Get("tenantId")
 
 			var req struct {
-				PluginKey string `json:"pluginKey" binding:"required"` // 插件唯一标识
-				Enabled   bool   `json:"enabled"`                      // 目标状态
+				PluginKey string `json:"pluginKey" binding:"required"`
+				Enabled   bool   `json:"enabled"`
 			}
 			if err := c.ShouldBindJSON(&req); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"message": "invalid request"})
 				return
 			}
 
-			// 验证插件是否存在（基于 plugins 注册表）
 			var plugin Plugin
 			if err := db.Where("plugin_key = ?", req.PluginKey).First(&plugin).Error; err != nil {
 				c.JSON(http.StatusNotFound, gin.H{"message": "plugin not found"})
 				return
 			}
 
-			// Upsert：存在则更新，不存在则创建
 			var tp TenantPlugin
-			db.Where("tenant_id = ? AND plugin_key = ?", tenantID, req.PluginKey).First(&tp)
-			tp.TenantID = tenantID.(uint)
-			tp.PluginKey = req.PluginKey
-			tp.Enabled = req.Enabled
-			tp.UpdatedAt = time.Now()
-
-			if tp.ID == 0 {
-				db.Create(&tp) // 新建
+			result := db.Where("tenant_id = ? AND plugin_key = ?", tenantID, req.PluginKey).First(&tp)
+			record := TenantPlugin{
+				TenantID:  tenantID.(uint),
+				PluginKey: req.PluginKey,
+				Enabled:   req.Enabled,
+				UpdatedAt: time.Now(),
+			}
+			if result.Error != nil {
+				if err := db.Select("TenantID", "PluginKey", "Enabled", "UpdatedAt").Create(&record).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to save plugin state"})
+					return
+				}
 			} else {
-				db.Save(&tp) // 更新
+				tp.Enabled = req.Enabled
+				tp.UpdatedAt = time.Now()
+				if err := db.Save(&tp).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to update plugin state"})
+					return
+				}
 			}
 
 			c.JSON(http.StatusOK, gin.H{"message": "ok"})
 		})
 	}
-
-	fmt.Println("Starting Plugin Service at port 8083...")
-	r.Run(":8083")
 }

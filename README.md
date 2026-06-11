@@ -47,16 +47,16 @@
 │              │      🚪 API Gateway          │                         │
 │              │    Gin Reverse Proxy         │                         │
 │              │    :8080 · CORS · 路由转发    │                         │
-│              └──┬───────┬───────────┐                              │
+│              └──┬───────┬───────────┘                              │
 │                 │       │           │                                      │
-│          ┌──────▼──┐ ┌──▼────┐ ┌───▼────┐                            │
-│          │ User   │ │ Plugin│ │         │                            │
-│          │ Service│ │Service│ │         │                            │
-│          │ :8081  │ │ :8083 │ │         │                            │
-│          │ 认证   │ │插件管理│ │         │                            │
-│          │ 用户   │ │租户开关│ │         │                            │
-│          │ RBAC   │ │       │ │         │                            │
-│              │         │           │                                  │
+│          ┌──────▼──┐ ┌──▼────┐                                     │
+│          │ User   │ │ Plugin│                                     │
+│          │ Service│ │Service│                                     │
+│          │ :8081  │ │ :8083 │                                     │
+│          │ 认证   │ │插件管理│                                     │
+│          │ 用户   │ │租户开关│                                     │
+│          │ RBAC   │ │       │                                     │
+│              │         │                                              │
 │              └─────────┼───────────┘                                  │
 │                        │                                              │
 │              ┌─────────▼──────────┐                                   │
@@ -83,35 +83,13 @@ web/
 │   ├── admin/        ⚙️  管理后台 — 插件管理、租户配置
 │   └── landing/      📄  营销官网
 ├── packages/
-│   ├── ui/           🎨  共享 MUI 组件库 (Layout, Button...)
-│   ├── plugin-sdk/   🧩  前端插件 SDK (注册、路由、菜单)
-│   ├── stores/       📦  Zustand 全局状态 (auth, plugins)
+│   ├── ui/           🎨  共享 MUI 组件库
+│   ├── plugin-sdk/   🧩  前端插件 SDK
+│   ├── stores/       📦  Zustand 全局状态
 │   ├── api/          🔌  API 客户端封装
-│   ├── hooks/        🪝  通用 React Hooks
+│   ├── hooks/        🪝  通用 React Hooks（占位）
 │   └── types/        📐  TypeScript 类型定义
 ```
-
----
-
-## 🧩 插件系统
-
-AgentMesh 的插件系统分为两大部分：
-
-### 后端插件服务 (`plugin-svc`)
-- **`plugins` 表** — 插件注册表，启动时自动播种内置插件
-- **`tenant_plugins` 表** — 租户级启用/禁用状态（多租户隔离）
-- **API 端点**：`/api/plugin/list`（租户可见）、`/admin/list`（管理列表）、`/admin/toggle`（开关）
-- **默认策略**：无租户配置时视为启用
-
-### 前端插件 SDK (`@agentmesh/plugin-sdk`)
-- 插件通过 `registerPlugin()` 注册路由、菜单项、图标
-- 应用启动时从后端拉取租户的启用插件列表
-- 未启用的插件菜单和路由自动隐藏
-- 内置插件：**Dashboard**（看板）
-
-<p align="center">
-  <img src="./admin-plugins.png" width="700" alt="Plugin Management" />
-</p>
 
 ---
 
@@ -121,8 +99,8 @@ AgentMesh 的插件系统分为两大部分：
 
 - Go 1.24+
 - Node.js 18+
+- pnpm 9+
 - Docker & Docker Compose
-- MySQL 8.0（Docker 自动启动）
 
 ### 一键启动（推荐）
 
@@ -136,27 +114,14 @@ make docker-up
 
 # 3. 安装前端依赖并启动
 cd web
-npm install
-npm run dev
+pnpm install
+pnpm dev
 
 # 4. 浏览器访问
 open http://localhost:3000
 ```
 
-### 分步启动
-
-```bash
-# 后端 — 构建并启动 Docker 服务
-docker-compose up -d
-
-# 查看启动日志
-docker-compose logs -f
-
-# 前端 — 开发模式
-cd web
-npm install
-npm run dev
-```
+默认平台管理员：`admin` / `admin123`（首次部署后请修改）
 
 ---
 
@@ -165,32 +130,61 @@ npm run dev
 ### 常用命令
 
 ```bash
-make help          # 查看所有命令
-make install       # 安装所有 Go 服务依赖
-make build         # 构建服务二进制
-make docker-up     # Docker Compose 启动
-make docker-down   # 停止服务
-make test          # 运行测试
+make help           # 查看所有命令
+make install        # 安装 Go 服务依赖
+make build          # 构建服务二进制到 bin/
+make docker-up      # Docker Compose 启动
+make docker-down    # 停止服务
+make test           # 运行全部 Go 单元测试
+make test-coverage  # Go + 前端覆盖率报告
 ```
 
 ### 前端开发
 
 ```bash
 cd web
-npm install        # 安装依赖
-npm run dev        # 开发服务器 → localhost:3000
-npm run build      # 生产构建
-npm run lint       # 代码检查
+pnpm install        # 安装依赖
+pnpm dev            # 开发服务器 → localhost:3000
+pnpm build          # 生产构建
+pnpm test           # 运行 Vitest 单元测试
+pnpm test:coverage  # 前端覆盖率（目标 ≥50%）
 ```
 
 ### 认证流程
 
 ```
 1. POST /api/user/register  →  创建账户（bcrypt 加密密码）
-2. POST /api/user/login     →  获取 JWT Token
-3. 前端存储 Token 至 localStorage（通过 Zustand authStore）
+2. POST /api/user/login     →  获取 JWT Token（响应格式：{ success, data: { token, user } }）
+3. 前端存储 Token 至 localStorage（Zustand authStore）
 4. 后续请求携带 Authorization: Bearer <token>
 5. 各微服务通过 JWT 中间件解析 userId / tenantId / role
+```
+
+---
+
+## 🧪 测试
+
+项目包含 Go 后端测试和前端 Vitest 测试，核心模块覆盖率 ≥50%。
+
+| 模块 | 测试文件 | 覆盖率 |
+|------|----------|--------|
+| user-svc | `user_svc_test.go` | ~52% |
+| plugin-svc | `plugin_svc_test.go` | ~64% |
+| plugin-svc/plugin | `plugin_test.go` | ~95% |
+| api-gateway/middleware | `auth_test.go` | ~64% |
+| @agentmesh/stores | `*.test.ts` | ~94% |
+| @agentmesh/plugin-sdk | `hooks.test.ts` | ~45% |
+| @agentmesh/api | `auth.test.ts` | ~67% |
+
+```bash
+# 后端测试
+make test
+
+# 前端测试
+cd web && pnpm test
+
+# 完整覆盖率
+make test-coverage
 ```
 
 ---
@@ -199,42 +193,34 @@ npm run lint       # 代码检查
 
 ```
 AgentMesh/
-├── services/                 # 🎯 Go 微服务
-│   ├── api-gateway/         #  API 网关（Gin Reverse Proxy）
-│   ├── user-svc/            #  用户认证服务
-│   └── plugin-svc/          #  插件管理服务
-├── web/                     # 🎨 前端 Monorepo
-│   ├── apps/
-│   │   ├── main/            #  主应用（Vite + React）
-│   │   ├── admin/           #  管理后台
-│   │   └── landing/         #  营销官网
-│   └── packages/
-│       ├── ui/              #  共享 UI 组件库
-│       ├── plugin-sdk/      #  插件开发 SDK
-│       ├── stores/          #  Zustand 状态管理
-│       ├── api/             #  API 客户端
-│       ├── hooks/           #  通用 Hooks
-│       └── types/           #  TypeScript 类型
-├── docker-compose.yml       # 🐳 Docker 编排
-├── Makefile                  # 🛠️ 构建脚本
-└── CLAUDE.md                # 📝 AI 辅助开发指南
+├── services/                 # Go 微服务
+│   ├── api-gateway/         # API 网关（Gin 反向代理）
+│   ├── user-svc/            # 用户认证 + RBAC
+│   ├── plugin-svc/          # 插件管理
+│   ├── plugins/chat/      # 示例插件（未接入 docker-compose）
+│   └── sql/                 # 数据库初始化脚本
+├── web/                     # 前端 Monorepo（pnpm + Turbo）
+│   ├── apps/main|admin|landing
+│   └── packages/ui|stores|plugin-sdk|api|hooks|types
+├── docs/                    # 设计文档与规划（本地）
+├── docker-compose.yml
+├── Makefile
+└── LICENSE
 ```
 
 ---
 
-## 🛠️ 技术栈
+## 🧩 插件系统
 
-| 层 | 技术 | 用途 |
-|----|------|------|
-| 后端语言 | Go 1.24+ | 高性能微服务 |
-| **Web 框架** | Gin | HTTP 路由、中间件 |
-| **数据库** | MySQL 8.0 + GORM | 持久化存储 |
-| **认证** | JWT + bcrypt | 安全鉴权 |
-| **前端** | React 18 + TypeScript | 用户界面 |
-| **UI 库** | MUI 5 | 组件系统 |
-| **状态管理** | Zustand | 全局状态 |
-| **构建** | Vite 5 | 前端打包 |
-| **容器化** | Docker Compose | 服务编排 |
+### 后端 (`plugin-svc`)
+- `plugins` 表 — 插件注册表，启动时自动播种内置插件
+- `tenant_plugins` 表 — 租户级启用/禁用（无记录 = 默认启用）
+- API：`/api/plugin/list`、`/api/plugin/admin/list`、`/api/plugin/admin/toggle`
+
+### 前端 (`@agentmesh/plugin-sdk`)
+- `registerPlugin()` 注册路由与菜单
+- 启动时从后端拉取租户启用插件列表
+- 未启用插件的菜单和路由自动隐藏
 
 ---
 
@@ -250,6 +236,19 @@ AgentMesh/
 | `POST` | `/api/plugin/admin/toggle` | 切换插件启用状态 🔐 | plugin-svc |
 
 > 🔐 = 需要 `Authorization: Bearer <JWT>` 头
+
+---
+
+## 🛠️ 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 后端 | Go 1.24+ · Gin · GORM · JWT · bcrypt |
+| 数据库 | MySQL 8.0 |
+| 前端 | React 18 · TypeScript · Vite · MUI · Zustand |
+| 包管理 | pnpm workspaces · Turbo |
+| 测试 | Go testing + testify · Vitest |
+| 部署 | Docker Compose |
 
 ---
 

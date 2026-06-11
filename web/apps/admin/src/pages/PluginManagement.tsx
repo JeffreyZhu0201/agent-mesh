@@ -1,37 +1,20 @@
 import { useEffect, useState } from 'react';
+import {
+  fetchAdminPlugins,
+  getAuthToken,
+  togglePlugin,
+  type PluginInfo,
+} from '@agentmesh/api';
 
-interface Plugin {
-  key: string;
-  name: string;
-  version: string;
-  type?: string;
-  description?: string;
-  author?: string;
-  enabled: boolean;
-}
-
-const API_BASE = 'http://localhost:8080/api';
-
-function getAuthToken(): string | null {
-  try {
-    const stored = localStorage.getItem('auth-storage');
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    return parsed?.state?.token || null;
-  } catch {
-    return null;
-  }
-}
-
+/** 租户插件管理页：查看并切换插件启用状态 */
 export function PluginManagement() {
-  const [plugins, setPlugins] = useState<Plugin[]>([]);
+  const [plugins, setPlugins] = useState<PluginInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [togglingKey, setTogglingKey] = useState<string | null>(null);
 
   const loadPlugins = async () => {
-    const token = getAuthToken();
-    if (!token) {
+    if (!getAuthToken()) {
       setError('Not authenticated. Please log in via the main app first.');
       setLoading(false);
       return;
@@ -39,12 +22,7 @@ export function PluginManagement() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/plugin/admin/list`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setPlugins(data.plugins || []);
+      setPlugins(await fetchAdminPlugins());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -56,26 +34,16 @@ export function PluginManagement() {
     loadPlugins();
   }, []);
 
+  /** 乐观更新插件开关，失败时回滚 */
   const toggleStatus = async (pluginKey: string, currentEnabled: boolean) => {
-    const token = getAuthToken();
-    if (!token) return;
+    if (!getAuthToken()) return;
     setTogglingKey(pluginKey);
-    // Optimistic update
     setPlugins((prev) =>
       prev.map((p) => (p.key === pluginKey ? { ...p, enabled: !currentEnabled } : p))
     );
     try {
-      const res = await fetch(`${API_BASE}/plugin/admin/toggle`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ pluginKey, enabled: !currentEnabled }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await togglePlugin(pluginKey, !currentEnabled);
     } catch (err) {
-      // Revert on error
       setPlugins((prev) =>
         prev.map((p) => (p.key === pluginKey ? { ...p, enabled: currentEnabled } : p))
       );

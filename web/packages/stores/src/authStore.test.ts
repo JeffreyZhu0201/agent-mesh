@@ -72,4 +72,23 @@ describe('authStore', () => {
     expect(state.token).toBeNull();
     expect(state.isAuthenticated).toBe(false);
   });
+
+  it('setToken 在有 user 时保持已认证', () => {
+    useAuthStore.setState({
+      user: { id: 1, username: 'alice', email: '', tenantId: 1, role: 'viewer' },
+      token: null,
+      isAuthenticated: false,
+    });
+    useAuthStore.getState().setToken('new-token');
+    expect(useAuthStore.getState().token).toBe('new-token');
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+  });
+
+  it('setUser 写入用户并标记已认证', () => {
+    const user = { id: 2, username: 'bob', email: 'b@x.com', tenantId: 1, role: 'admin' };
+    useAuthStore.getState().setUser(user);
+    const state = useAuthStore.getState();
+    expect(state.user).toEqual(user);
+    expect(state.isAuthenticated).toBe(true);
+  });
 });

@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import {
-  Box,
-  Button,
-  Container,
-  Link,
-  TextField,
-  Typography,
-  Alert,
-  Paper,
-} from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { TextField } from '@mui/material';
 import { useAuthStore } from '@agentmesh/stores';
+import { AuthPageLayout } from '../components/AuthPageLayout';
+
+/** 登录表单字段配置 */
+const LOGIN_FIELDS = [
+  { key: 'username' as const, label: 'Username', type: 'text', autoComplete: 'username', autoFocus: true },
+  { key: 'password' as const, label: 'Password', type: 'password', autoComplete: 'current-password' },
+];
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -20,6 +18,10 @@ const Login: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const values = { username, password };
+  const setters = { username: setUsername, password: setPassword };
+
+  /** 提交登录表单 */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -36,66 +38,34 @@ const Login: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="sm" sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center' }}>
-      <Paper sx={{ p: 4, width: '100%' }}>
-        <Box sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" component="h1" gutterBottom>
-            Sign In
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Welcome back to AgentMesh
-          </Typography>
-        </Box>
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="username"
-            label="Username"
-            name="username"
-            autoComplete="username"
-            autoFocus
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            name="password"
-            label="Password"
-            type="password"
-            id="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{ mt: 3, mb: 2 }}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Signing in...' : 'Sign In'}
-          </Button>
-
-          <Box sx={{ textAlign: 'center' }}>
-            <Link component={RouterLink} to="/app/register" variant="body2">
-              Don't have an account? Sign Up
-            </Link>
-          </Box>
-        </Box>
-      </Paper>
-    </Container>
+    <AuthPageLayout
+      title="Sign In"
+      subtitle="Welcome back to AgentMesh"
+      error={error}
+      onSubmit={handleSubmit}
+      submitLabel="Sign In"
+      loadingLabel="Signing in..."
+      isLoading={isLoading}
+      footerText="Don't have an account? Sign Up"
+      footerTo="/app/register"
+    >
+      {LOGIN_FIELDS.map(({ key, label, type, autoComplete, autoFocus }) => (
+        <TextField
+          key={key}
+          margin="normal"
+          required
+          fullWidth
+          id={key}
+          name={key}
+          label={label}
+          type={type}
+          autoComplete={autoComplete}
+          autoFocus={autoFocus}
+          value={values[key]}
+          onChange={(e) => setters[key](e.target.value)}
+        />
+      ))}
+    </AuthPageLayout>
   );
 };
 

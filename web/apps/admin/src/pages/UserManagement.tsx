@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Pencil, X, Plus, Trash2, AlertCircle } from 'lucide-react';
+import {
+  createUser,
+  deleteUser,
+  fetchUsers,
+  getUserRole,
+  updateUser,
+} from '@agentmesh/api';
 
 interface User {
   id: string;
@@ -25,49 +32,23 @@ interface UpdateUserRequest {
   status?: number;
 }
 
-const API_BASE = 'http://localhost:8080/api';
-
-function getAuthToken(): string | null {
-  try {
-    const stored = localStorage.getItem('auth-storage');
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    return parsed?.state?.token || null;
-  } catch {
-    return null;
-  }
-}
-
-function getUserRole(): string | null {
-  try {
-    const stored = localStorage.getItem('auth-storage');
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    return parsed?.state?.user?.role || null;
-  } catch {
-    return null;
-  }
-}
-
-async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = getAuthToken();
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
-    ...options.headers,
+/** 将后端用户记录映射为页面展示结构 */
+function mapUser(record: {
+  id: number;
+  username: string;
+  email: string;
+  tenantId: number;
+  role: string;
+  status: number;
+}): User {
+  return {
+    id: String(record.id),
+    username: record.username,
+    email: record.email,
+    tenantId: String(record.tenantId),
+    role: record.role as User['role'],
+    status: record.status,
   };
-
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `API request failed: ${response.status}`);
-  }
-
-  return response.json();
 }
 
 export function UserManagement() {
@@ -86,20 +67,21 @@ export function UserManagement() {
   const isTenantAdmin = userRole === 'admin';
   const canManageUsers = isPlatformAdmin || isTenantAdmin;
 
+  const userScope = isPlatformAdmin ? 'platform' : 'tenant';
+
   const loadUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const endpoint = isPlatformAdmin ? '/admin/users' : '/tenant/users';
-      const data = await apiRequest<{ users: User[] }>(endpoint);
-      setUsers(data.users || []);
+      const records = await fetchUsers(userScope);
+      setUsers(records.map(mapUser));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load users');
       setUsers([]);
     } finally {
       setLoading(false);
     }
-  }, [isPlatformAdmin]);
+  }, [userScope]);
 
   useEffect(() => {
     if (canManageUsers) {
@@ -132,14 +114,10 @@ export function UserManagement() {
     if (!editingUser) return;
 
     try {
-      const endpoint = isPlatformAdmin ? `/admin/users/${editingUser.id}` : `/tenant/users/${editingUser.id}`;
-      await apiRequest(endpoint, {
-        method: 'PUT',
-        body: JSON.stringify({
-          email: formData.email,
-          role: formData.role,
-          status: formData.status,
-        }),
+      await updateUser(userScope, Number(editingUser.id), {
+        email: formData.email,
+        role: formData.role,
+        status: formData.status,
       });
       await loadUsers();
       handleCloseEdit();
@@ -161,11 +139,7 @@ export function UserManagement() {
       }
       // tenantId is not needed for tenant_admin - it uses their own tenant
 
-      const endpoint = isPlatformAdmin ? '/admin/users' : '/tenant/users';
-      await apiRequest(endpoint, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      });
+      await createUser(userScope, body);
       await loadUsers();
       handleCloseCreate();
     } catch (err) {
@@ -177,8 +151,7 @@ export function UserManagement() {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
 
     try {
-      const endpoint = isPlatformAdmin ? `/admin/users/${userId}` : `/tenant/users/${userId}`;
-      await apiRequest(endpoint, { method: 'DELETE' });
+      await deleteUser(userScope, Number(userId));
       await loadUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete user');
@@ -188,11 +161,7 @@ export function UserManagement() {
   const handleToggleStatus = async (user: User) => {
     const newStatus = user.status === 1 ? 0 : 1;
     try {
-      const endpoint = isPlatformAdmin ? `/admin/users/${user.id}` : `/tenant/users/${user.id}`;
-      await apiRequest(endpoint, {
-        method: 'PUT',
-        body: JSON.stringify({ status: newStatus }),
-      });
+      await updateUser(userScope, Number(user.id), { status: newStatus });
       await loadUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user status');

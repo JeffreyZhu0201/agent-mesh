@@ -24,6 +24,8 @@ describe('authApi', () => {
     const result = await authApi.login({ username: 'alice', password: 'secret1' });
     expect(result.token).toBe('jwt');
     expect(result.user.username).toBe('alice');
+    expect(result.user.tenantId).toBe(0);
+    expect(result.user.role).toBe('viewer');
   });
 
   it('registers via user service endpoint', async () => {

@@ -66,6 +66,6 @@ describe('pluginsStore', () => {
     await usePluginsStore.getState().loadEnabled();
     const state = usePluginsStore.getState();
     expect(state.loaded).toBe(true);
-    expect(state.error).toContain('Failed to load plugins');
+    expect(state.error).toBe('Request failed');
   });
 });

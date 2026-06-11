@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, X, AlertTriangle } from 'lucide-react';
+import {
+  createTenant as apiCreateTenant,
+  deleteTenant as apiDeleteTenant,
+  fetchTenants,
+  getUserRole,
+  updateTenant as apiUpdateTenant,
+} from '@agentmesh/api';
 
 interface Tenant {
   id: string;
@@ -10,33 +17,23 @@ interface Tenant {
   created: string;
 }
 
-interface ApiError {
-  message: string;
+/** 将后端租户记录映射为页面展示结构 */
+function mapTenant(record: {
+  id: number;
+  name: string;
+  code: string;
+  status: number;
+  createdAt?: string;
+}): Tenant {
+  return {
+    id: String(record.id),
+    name: record.name,
+    code: record.code,
+    status: record.status,
+    user_count: 0,
+    created: record.createdAt ?? '',
+  };
 }
-
-function getUserRole(): string | null {
-  try {
-    const stored = localStorage.getItem('auth-storage');
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    return parsed?.state?.user?.role || null;
-  } catch {
-    return null;
-  }
-}
-
-function getAuthToken(): string | null {
-  try {
-    const stored = localStorage.getItem('auth-storage');
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    return parsed?.state?.token || null;
-  } catch {
-    return null;
-  }
-}
-
-const API_BASE = 'http://localhost:8080/api';
 
 export function TenantManagement() {
   const userRole = getUserRole();
@@ -66,27 +63,10 @@ function TenantManagementContent() {
   const [submitting, setSubmitting] = useState(false);
 
   const loadTenants = useCallback(async () => {
-    const token = getAuthToken();
-    if (!token) {
-      setError('Not authenticated');
-      setLoading(false);
-      return;
-    }
-
     try {
       setError(null);
-      const response = await fetch(`${API_BASE}/admin/tenants`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to load tenants: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setTenants(data.tenants || data || []);
+      const records = await fetchTenants();
+      setTenants(records.map(mapTenant));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load tenants');
     } finally {
@@ -99,62 +79,17 @@ function TenantManagementContent() {
   }, [loadTenants]);
 
   const createTenant = async (name: string, code: string): Promise<boolean> => {
-    const token = getAuthToken();
-    if (!token) return false;
-
-    const response = await fetch(`${API_BASE}/admin/tenants`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ name, code }),
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ message: 'Failed to create tenant' }));
-      throw new Error(err.message || 'Failed to create tenant');
-    }
-
+    await apiCreateTenant(name, code);
     return true;
   };
 
   const updateTenant = async (id: string, name: string, code: string, status: number): Promise<boolean> => {
-    const token = getAuthToken();
-    if (!token) return false;
-
-    const response = await fetch(`${API_BASE}/admin/tenants/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ name, code, status }),
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ message: 'Failed to update tenant' }));
-      throw new Error(err.message || 'Failed to update tenant');
-    }
-
+    await apiUpdateTenant(Number(id), { name, code, status });
     return true;
   };
 
   const deleteTenant = async (id: string): Promise<boolean> => {
-    const token = getAuthToken();
-    if (!token) return false;
-
-    const response = await fetch(`${API_BASE}/admin/tenants/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to delete tenant');
-    }
-
+    await apiDeleteTenant(Number(id));
     return true;
   };
 

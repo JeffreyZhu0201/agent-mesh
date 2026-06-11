@@ -18,7 +18,7 @@
  * Plugin SDK Hooks for React
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Plugin, MenuItem, RouteConfig, PluginContext } from './types';
 
 // ==================== 全局注册表 ====================
@@ -121,50 +121,17 @@ export function getRouteConfigs(enabledKeys?: Set<string> | null): RouteConfig[]
 }
 
 /**
- * Hook to get a specific plugin by name
+ * Hook：按名称获取已注册插件（插件在 import 时注册，运行时不变）
  */
 export function usePlugin(name: string): Plugin | undefined {
-  const [plugin, setPlugin] = useState<Plugin | undefined>(() => registeredPlugins.get(name));
-
-  useEffect(() => {
-    // Subscribe to changes by re-reading on each render
-    const currentPlugin = registeredPlugins.get(name);
-    if (currentPlugin !== plugin) {
-      setPlugin(currentPlugin);
-    }
-  }, [name]);
-
-  useEffect(() => {
-    // Set up a simple observer pattern for updates
-    const checkPlugin = setInterval(() => {
-      const currentPlugin = registeredPlugins.get(name);
-      if (currentPlugin !== plugin) {
-        setPlugin(currentPlugin);
-      }
-    }, 1000);
-
-    return () => clearInterval(checkPlugin);
-  }, [name, plugin]);
-
-  return plugin;
+  return useMemo(() => registeredPlugins.get(name), [name]);
 }
 
 /**
- * Hook to get all registered plugins (reactive)
+ * Hook：获取所有已注册插件
  */
 export function usePlugins(): Plugin[] {
-  const [plugins, setPlugins] = useState<Plugin[]>(() => getRegisteredPlugins());
-
-  useEffect(() => {
-    const updatePlugins = () => {
-      setPlugins(getRegisteredPlugins());
-    };
-
-    const interval = setInterval(updatePlugins, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  return plugins;
+  return useMemo(() => getRegisteredPlugins(), []);
 }
 
 // ==================== useMenuItems(enabledKeys) 说明 ====================
@@ -184,23 +151,10 @@ export function usePlugins(): Plugin[] {
 // 这确保了插件级别的访问控制，后端控制前端的插件可见性
 // ==================== useMenuItems(enabledKeys) 说明 END ====================
 /**
- * Hook to get all menu items (sorted by order, reactive).
- * If `enabledKeys` is provided, only menu items from enabled plugins are shown.
+ * Hook：获取已启用插件的菜单项（按 order 排序）
+ * enabledKeys 变化时重新计算
  */
 export function useMenuItems(enabledKeys?: Set<string> | null): MenuItem[] {
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => getMenuItems(enabledKeys));
-
-  useEffect(() => {
-    setMenuItems(getMenuItems(enabledKeys));
-    const updateMenuItems = () => {
-      setMenuItems(getMenuItems(enabledKeys));
-    };
-
-    const interval = setInterval(updateMenuItems, 1000);
-    return () => clearInterval(interval);
-    // Re-run when the set of enabled keys changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabledKeys]);
-
-  return menuItems;
+  const keySignature = enabledKeys ? [...enabledKeys].sort().join(',') : '';
+  return useMemo(() => getMenuItems(enabledKeys), [keySignature]);
 }

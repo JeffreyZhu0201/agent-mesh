@@ -245,6 +245,49 @@ func main() {
 	r.Run(":8083")
 }
 
+// tenantPluginRow 租户插件开关记录（查询结果）
+type tenantPluginRow struct {
+	PluginKey string `gorm:"column:plugin_key"`
+	Enabled   bool   `gorm:"column:enabled"`
+}
+
+// tenantPluginMaps 租户插件状态：disabled=明确禁用，explicit=有显式记录，enabled=显式启用值
+type tenantPluginMaps struct {
+	disabled map[string]bool
+	explicit map[string]bool
+	enabled  map[string]bool
+}
+
+// loadTenantPluginMaps 加载指定租户的插件开关状态
+func loadTenantPluginMaps(db *gorm.DB, tenantID uint) tenantPluginMaps {
+	var rows []tenantPluginRow
+	db.Table("tenant_plugins").Select("plugin_key, enabled").
+		Where("tenant_id = ?", tenantID).Scan(&rows)
+
+	result := tenantPluginMaps{
+		disabled: make(map[string]bool),
+		explicit: make(map[string]bool),
+		enabled:  make(map[string]bool),
+	}
+	for _, row := range rows {
+		result.explicit[row.PluginKey] = true
+		result.enabled[row.PluginKey] = row.Enabled
+		if !row.Enabled {
+			result.disabled[row.PluginKey] = true
+		}
+	}
+	return result
+}
+
+// pluginToJSON 将 Plugin 模型转为 API 响应字段
+func pluginToJSON(p Plugin, enabled bool) gin.H {
+	return gin.H{
+		"key": p.PluginKey, "name": p.Name, "version": p.Version,
+		"type": p.Type, "description": p.Description, "author": p.Author,
+		"enabled": enabled,
+	}
+}
+
 func registerRoutes(r *gin.Engine) {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
@@ -254,82 +297,34 @@ func registerRoutes(r *gin.Engine) {
 	{
 		authed.GET("/list", func(c *gin.Context) {
 			tenantID, _ := c.Get("tenantId")
-
 			var allPlugins []Plugin
 			db.Find(&allPlugins)
 
-			type tp struct {
-				PluginKey string `gorm:"column:plugin_key"`
-				Enabled   bool   `gorm:"column:enabled"`
-			}
-			var tps []tp
-			db.Table("tenant_plugins").Select("plugin_key, enabled").
-				Where("tenant_id = ?", tenantID).Scan(&tps)
-
-			disabled := make(map[string]bool)
-			for _, t := range tps {
-				if !t.Enabled {
-					disabled[t.PluginKey] = true
-				}
-			}
-
+			state := loadTenantPluginMaps(db, tenantID.(uint))
 			result := make([]gin.H, 0, len(allPlugins))
 			for _, p := range allPlugins {
-				if disabled[p.PluginKey] {
+				if state.disabled[p.PluginKey] {
 					continue
 				}
-				result = append(result, gin.H{
-					"key":         p.PluginKey,
-					"name":        p.Name,
-					"version":     p.Version,
-					"type":        p.Type,
-					"description": p.Description,
-					"author":      p.Author,
-					"enabled":     true,
-				})
+				result = append(result, pluginToJSON(p, true))
 			}
-
 			c.JSON(http.StatusOK, gin.H{"plugins": result})
 		})
 
 		authed.GET("/admin/list", func(c *gin.Context) {
 			tenantID, _ := c.Get("tenantId")
-
 			var allPlugins []Plugin
 			db.Find(&allPlugins)
 
-			type tp struct {
-				PluginKey string `gorm:"column:plugin_key"`
-				Enabled   bool   `gorm:"column:enabled"`
-			}
-			var tps []tp
-			db.Table("tenant_plugins").Select("plugin_key, enabled").
-				Where("tenant_id = ?", tenantID).Scan(&tps)
-
-			state := make(map[string]bool)
-			explicit := make(map[string]bool)
-			for _, t := range tps {
-				state[t.PluginKey] = t.Enabled
-				explicit[t.PluginKey] = true
-			}
-
+			state := loadTenantPluginMaps(db, tenantID.(uint))
 			result := make([]gin.H, 0, len(allPlugins))
 			for _, p := range allPlugins {
 				enabled := true
-				if explicit[p.PluginKey] {
-					enabled = state[p.PluginKey]
+				if state.explicit[p.PluginKey] {
+					enabled = state.enabled[p.PluginKey]
 				}
-				result = append(result, gin.H{
-					"key":         p.PluginKey,
-					"name":        p.Name,
-					"version":     p.Version,
-					"type":        p.Type,
-					"description": p.Description,
-					"author":      p.Author,
-					"enabled":     enabled,
-				})
+				result = append(result, pluginToJSON(p, enabled))
 			}
-
 			c.JSON(http.StatusOK, gin.H{"plugins": result})
 		})
 

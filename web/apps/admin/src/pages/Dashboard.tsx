@@ -1,18 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Building2, Puzzle, Users, Activity } from 'lucide-react';
-
-interface Tenant {
-  id: number;
-  name: string;
-  status: number;
-}
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-}
+import { fetchTenants, fetchUsers, getAuthToken, getUserRole } from '@agentmesh/api';
 
 interface Stats {
   totalTenants: number;
@@ -22,28 +10,6 @@ interface Stats {
   adminCount: number;
   userCount: number;
   viewerCount: number;
-}
-
-function getUserRole(): string | null {
-  try {
-    const stored = localStorage.getItem('auth-storage');
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    return parsed?.state?.user?.role || null;
-  } catch {
-    return null;
-  }
-}
-
-function getAuthToken(): string | null {
-  try {
-    const stored = localStorage.getItem('auth-storage');
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    return parsed?.state?.token || null;
-  } catch {
-    return null;
-  }
 }
 
 export function Dashboard() {
@@ -68,38 +34,16 @@ export function Dashboard() {
       }
 
       try {
-        const headers = {
-          Authorization: `Bearer ${token}`,
-        };
-
-        const [tenantsRes, usersRes] = await Promise.all([
-          fetch('http://localhost:8080/api/admin/tenants', { headers }),
-          fetch('http://localhost:8080/api/admin/users', { headers }),
-        ]);
-
-        if (!tenantsRes.ok || !usersRes.ok) {
-          throw new Error('Failed to fetch data');
-        }
-
-        const tenantsData = await tenantsRes.json();
-        const usersData = await usersRes.json();
-
-        const tenants: Tenant[] = tenantsData.tenants || [];
-        const users: User[] = usersData.users || [];
-
-        const platformAdminCount = users.filter((u) => u.role === 'platform_admin').length;
-        const adminCount = users.filter((u) => u.role === 'admin').length;
-        const userCount = users.filter((u) => u.role === 'user').length;
-        const viewerCount = users.filter((u) => u.role === 'viewer').length;
+        const [tenants, users] = await Promise.all([fetchTenants(), fetchUsers('platform')]);
 
         setStats({
           totalTenants: tenants.length,
           activeTenants: tenants.filter((t) => t.status === 1).length,
           totalUsers: users.length,
-          platformAdminCount,
-          adminCount,
-          userCount,
-          viewerCount,
+          platformAdminCount: users.filter((u) => u.role === 'platform_admin').length,
+          adminCount: users.filter((u) => u.role === 'admin').length,
+          userCount: users.filter((u) => u.role === 'user').length,
+          viewerCount: users.filter((u) => u.role === 'viewer').length,
         });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');

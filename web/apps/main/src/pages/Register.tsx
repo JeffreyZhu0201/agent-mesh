@@ -1,53 +1,73 @@
 import React, { useState } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import {
-  Box,
-  Button,
-  Container,
-  Link,
-  TextField,
-  Typography,
-  Alert,
-  Paper,
-} from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { TextField } from '@mui/material';
+import { authApi, validateRegisterPassword } from '@agentmesh/api';
+import { AuthPageLayout } from '../components/AuthPageLayout';
+
+/** 注册表单全部字段 */
+interface RegisterForm {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
+const EMPTY_FORM: RegisterForm = {
+  username: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+};
+
+/** 表单字段配置，用于减少重复的 TextField 声明 */
+const FORM_FIELDS: Array<{
+  key: keyof RegisterForm;
+  label: string;
+  type?: string;
+  autoComplete: string;
+  autoFocus?: boolean;
+}> = [
+  { key: 'username', label: 'Username', autoComplete: 'username', autoFocus: true },
+  { key: 'email', label: 'Email Address', type: 'email', autoComplete: 'email' },
+  { key: 'password', label: 'Password', type: 'password', autoComplete: 'new-password' },
+  {
+    key: 'confirmPassword',
+    label: 'Confirm Password',
+    type: 'password',
+    autoComplete: 'new-password',
+  },
+];
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [form, setForm] = useState<RegisterForm>(EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  /** 更新单个表单字段 */
+  const handleFieldChange =
+    (key: keyof RegisterForm) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      setForm((prev) => ({ ...prev, [key]: e.target.value }));
+    };
+
+  /** 提交注册：先客户端校验密码，再调用 authApi 注册 */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    const validationError = validateRegisterPassword(form);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     setIsLoading(true);
-
     try {
-      const response = await fetch('http://localhost:8080/api/user/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, email }),
+      await authApi.register({
+        username: form.username,
+        password: form.password,
+        email: form.email,
       });
-
-      const body = await response.json();
-      if (!response.ok) {
-        throw new Error(body.error || body.message || 'Registration failed');
-      }
-
       navigate('/app/login');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
@@ -57,90 +77,34 @@ const Register: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="sm" sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center' }}>
-      <Paper sx={{ p: 4, width: '100%' }}>
-        <Box sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" component="h1" gutterBottom>
-            Sign Up
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Create your AgentMesh account
-          </Typography>
-        </Box>
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="username"
-            label="Username"
-            name="username"
-            autoComplete="username"
-            autoFocus
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="email"
-            label="Email Address"
-            name="email"
-            autoComplete="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            name="password"
-            label="Password"
-            type="password"
-            id="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            name="confirmPassword"
-            label="Confirm Password"
-            type="password"
-            id="confirmPassword"
-            autoComplete="new-password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-          />
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{ mt: 3, mb: 2 }}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Creating account...' : 'Sign Up'}
-          </Button>
-
-          <Box sx={{ textAlign: 'center' }}>
-            <Link component={RouterLink} to="/app/login" variant="body2">
-              Already have an account? Sign In
-            </Link>
-          </Box>
-        </Box>
-      </Paper>
-    </Container>
+    <AuthPageLayout
+      title="Sign Up"
+      subtitle="Create your AgentMesh account"
+      error={error}
+      onSubmit={handleSubmit}
+      submitLabel="Sign Up"
+      loadingLabel="Creating account..."
+      isLoading={isLoading}
+      footerText="Already have an account? Sign In"
+      footerTo="/app/login"
+    >
+      {FORM_FIELDS.map(({ key, label, type, autoComplete, autoFocus }) => (
+        <TextField
+          key={key}
+          margin="normal"
+          required
+          fullWidth
+          id={key}
+          name={key}
+          label={label}
+          type={type ?? 'text'}
+          autoComplete={autoComplete}
+          autoFocus={autoFocus}
+          value={form[key]}
+          onChange={handleFieldChange(key)}
+        />
+      ))}
+    </AuthPageLayout>
   );
 };
 

@@ -8,6 +8,7 @@
     "test": "vitest run --root ../.. packages/stores"
   },
   "dependencies": {
+    "@agentmesh/api": "workspace:*",
     "zustand": "^4.5.0"
   }
 }

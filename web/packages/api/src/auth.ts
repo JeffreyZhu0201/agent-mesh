@@ -1,14 +1,4 @@
-/*
- * @Author: Jeffrey Zhu JeffreyZhu0201@gmail.com
- * @Date: 2026-06-05 15:57:39
- * @LastEditors: Jeffrey Zhu JeffreyZhu0201@gmail.com
- * @LastEditTime: 2026-06-11 17:51:08
- * @FilePath: /AgentMesh/web/packages/api/src/auth.ts
- * @Description: 
- * 
- * Copyright (c) 2026 by JeffreyZhu, All Rights Reserved. 
- */
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { API_BASE_URL, fetchJson } from './http';
 
 export interface LoginResponse {
   token: string;
@@ -17,6 +7,8 @@ export interface LoginResponse {
     username: string;
     email: string;
     avatar?: string;
+    tenantId: number;
+    role: string;
   };
 }
 
@@ -39,84 +31,49 @@ export interface RegisterRequest {
   email: string;
 }
 
-class AuthApiError extends Error {
-  constructor(public status: number, message: string) {
-    super(message);
-    this.name = 'AuthApiError';
-  }
+/** 将 user-svc 返回的用户对象规范化为前端 LoginResponse.user 结构 */
+function normalizeUser(rawUser: Record<string, unknown> = {}) {
+  return {
+    id: String(rawUser.id ?? rawUser.userId ?? ''),
+    username: String(rawUser.username ?? ''),
+    email: String(rawUser.email ?? ''),
+    avatar: rawUser.avatar as string | undefined,
+    tenantId: Number(rawUser.tenantId ?? 0),
+    role: String(rawUser.role ?? 'viewer'),
+  };
 }
 
-async function fetchWithAuth(url: string, options: RequestInit = {}) {
-  const token = localStorage.getItem('auth-storage');
-  const headers = new Headers(options.headers);
-  headers.set('Content-Type', 'application/json');
-
-  if (token) {
-    try {
-      const parsed = JSON.parse(token);
-      if (parsed.state?.token) {
-        headers.set('Authorization', `Bearer ${parsed.state.token}`);
-      }
-    } catch {
-      // ignore parse errors
-    }
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'Request failed' }));
-    throw new AuthApiError(response.status, error.message || 'Request failed');
-  }
-
-  return response.json();
-}
-
-async function fetchPublic(url: string, options: RequestInit = {}) {
-  const headers = new Headers(options.headers);
-  headers.set('Content-Type', 'application/json');
-
-  const response = await fetch(url, { ...options, headers });
-  const body = await response.json().catch(() => ({ error: 'Request failed' }));
-
-  if (!response.ok) {
-    throw new AuthApiError(response.status, body.error || body.message || 'Request failed');
-  }
-
-  return body.data ?? body;
+/** 公开接口（登录/注册）：无需 Token */
+async function fetchPublic<T>(path: string, options: RequestInit): Promise<T> {
+  const { data } = await fetchJson<T>(`${API_BASE_URL}${path}`, options);
+  return data;
 }
 
 export const authApi = {
+  /** 用户登录，返回 JWT 与用户信息 */
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    const payload = await fetchPublic(`${API_BASE_URL}/user/login`, {
-      method: 'POST',
-      body: JSON.stringify(credentials),
-    });
-    return {
-      token: payload.token,
-      user: {
-        id: String(payload.user?.id ?? payload.user?.userId ?? ''),
-        username: payload.user?.username ?? '',
-        email: payload.user?.email ?? '',
-        avatar: payload.user?.avatar,
-      },
-    };
+    const payload = await fetchPublic<{ token: string; user?: Record<string, unknown> }>(
+      '/user/login',
+      { method: 'POST', body: JSON.stringify(credentials) }
+    );
+    return { token: payload.token, user: normalizeUser(payload.user) };
   },
 
+  /** 用户注册，成功后需自行跳转登录页 */
   async register(data: RegisterRequest): Promise<RegisterResponse> {
-    const payload = await fetchPublic(`${API_BASE_URL}/user/register`, {
+    const payload = await fetchPublic<Record<string, unknown>>('/user/register', {
       method: 'POST',
       body: JSON.stringify(data),
     });
     return {
       user: {
         id: String(payload.id ?? ''),
-        username: payload.username ?? '',
-        email: payload.email ?? '',
+        username: String(payload.username ?? ''),
+        email: String(payload.email ?? ''),
       },
     };
   },
 };
+
+// 兼容旧导出
+export { ApiError, AuthApiError } from './http';
